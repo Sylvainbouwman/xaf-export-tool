@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>XAF Raw Export</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    /* ── bouwman.tools kleurenpalet ── */
+    :root {
+      --bt-primair:      #2C1A0E;
+      --bt-terracotta:   #C0522A;
+      --bt-sienna:       #E8784F;
+      --bt-zand:         #F5EBE0;
+      --bt-page:         #FDF6F0;
+      --bt-border:       #E8C4A8;
+      --bt-muted:        #A07860;
+    }
+    .bt-footer-minimal {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding-top: 8px; border-top: 0.5px solid var(--bt-border);
+      font-size: 11px; color: var(--bt-muted); position: relative; cursor: default;
+    }
+    .bt-footer-minimal .bt-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bt-terracotta); flex-shrink: 0; }
+    .bt-footer-minimal strong { color: var(--bt-terracotta); font-weight: 500; }
+    .bt-footer-minimal .bt-tooltip { display: none; position: absolute; bottom: 28px; left: 0; background: var(--bt-primair); color: var(--bt-zand); font-size: 11px; padding: 6px 12px; border-radius: 6px; white-space: nowrap; }
+    .bt-footer-minimal:hover .bt-tooltip { display: block; }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #eef2f7; min-height: 100vh; margin: 0; padding: 24px 16px; }
+    .card { max-width: 660px; margin: 0 auto; background: #fff; border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,.10), 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
+    .app-header { background: linear-gradient(135deg, #1E2D4E 0%, #2a4a82 100%); padding: 20px 28px; color: #fff; }
+    .app-header h1 { margin: 0 0 3px; font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; }
+    .app-header p  { margin: 0; font-size: 0.82rem; opacity: .65; }
+    .card-body { padding: 20px 28px 26px; }
+    label.drop {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      border: 2px dashed #cbd5e1; border-radius: 10px; padding: 22px 24px;
+      cursor: pointer; text-align: center; background: #f8fafc;
+      transition: border-color .2s, background .2s;
+    }
+    label.drop:hover, label.drop.dragover { border-color: #1E2D4E; background: #f0f4f9; }
+    .drop-icon  { margin-bottom: 7px; color: #94a3b8; }
+    .drop-title { font-size: 0.9rem; font-weight: 600; color: #334155; margin-bottom: 3px; }
+    .drop-sub   { font-size: 0.76rem; color: #94a3b8; }
+    input[type=file] { display: none; }
+    #status { margin-top: 14px; font-size: 0.86rem; min-height: 1.3em; }
+    #status.ok  { color: #059669; }
+    #status.err { color: #dc2626; }
+    #prog-wrap  { margin-top: 10px; display: none; }
+    #prog-track { background: #e2e8f0; border-radius: 6px; height: 8px; overflow: hidden; }
+    #prog-fill  { height: 100%; background: linear-gradient(90deg, #1E2D4E, #3b82f6); border-radius: 6px; width: 0%; transition: width .3s; }
+    #prog-label { font-size: 0.76rem; color: #64748b; margin-top: 5px; }
+    #stats-grid {
+      display: none;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 8px; margin-top: 14px;
+    }
+    .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; display: flex; flex-direction: column; gap: 2px; }
+    .stat-num  { font-size: 1.05rem; font-weight: 700; color: #1E2D4E; }
+    .stat-lbl  { font-size: 0.67rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
+    #aansluit-info { display: none; margin-top: 10px; font-size: 0.83rem; font-weight: 500; padding: 8px 12px; border-radius: 7px; }
+    #aansluit-info.ok   { display: block; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    #aansluit-info.warn { display: block; background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+    #periode-wrap { margin-top: 16px; display: none; }
+    .periode-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 0.71rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .06em; }
+    #periode-count { margin-left: auto; font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 0.78rem; color: #64748b; }
+    .btn-sm { padding: 2px 9px; font-size: 0.71rem; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 5px; cursor: pointer; line-height: 1.6; }
+    .btn-sm:hover { background: #e2e8f0; }
+    #periode-checks { display: flex; flex-wrap: wrap; gap: 5px; }
+    .periode-cb { cursor: pointer; }
+    .periode-cb input { display: none; }
+    .periode-cb .chip { display: inline-block; padding: 4px 12px; border-radius: 20px; border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; font-size: 0.79rem; font-weight: 500; transition: background .15s, border-color .15s, color .15s; user-select: none; }
+    .periode-cb input:checked + .chip { background: #1E2D4E; color: #fff; border-color: #1E2D4E; }
+    .periode-cb:hover .chip { border-color: #94a3b8; }
+    .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+    #exportBtn, #csvBtn { padding: 9px 22px; border: none; border-radius: 7px; font-size: 0.88rem; font-weight: 600; cursor: pointer; display: none; transition: background .15s, box-shadow .15s; }
+    #exportBtn          { background: #1E2D4E; color: #fff; }
+    #exportBtn:hover    { background: #162240; box-shadow: 0 2px 10px rgba(30,45,78,.25); }
+    #exportBtn:disabled { background: #94a3b8; cursor: default; box-shadow: none; }
+    #csvBtn             { background: #065f46; color: #fff; }
+    #csvBtn:hover       { background: #054338; box-shadow: 0 2px 10px rgba(6,95,70,.25); }
+    #csvBtn:disabled    { background: #94a3b8; cursor: default; box-shadow: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <header class="app-header">
+      <h1>XAF Raw Export</h1>
+      <p>Verwerk XAF-auditfiles naar Excel of CSV — volledig in de browser</p>
+    </header>
+    <div class="card-body">
+
+      <label class="drop" for="fileInput">
+        <div class="drop-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 16 12 12 8 16"></polyline>
+            <line x1="12" y1="12" x2="12" y2="21"></line>
+            <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>
+          </svg>
+        </div>
+        <div class="drop-title">Klik of sleep een XAF-bestand</div>
+        <div class="drop-sub">.xaf of .xml &nbsp;·&nbsp; XAF 3.2 en 4.0</div>
+      </label>
+      <input type="file" id="fileInput" accept=".xaf,.xml">
+
+      <div id="status"></div>
+      <div id="prog-wrap">
+        <div id="prog-track"><div id="prog-fill"></div></div>
+        <div id="prog-label"></div>
+      </div>
+
+      <div id="stats-grid">
+        <div class="stat-card" id="stat-rekeningen">
+          <span class="stat-num">—</span><span class="stat-lbl">Rekeningen</span>
+        </div>
+        <div class="stat-card" id="stat-beginsaldi">
+          <span class="stat-num">—</span><span class="stat-lbl">Beginsaldi</span>
+        </div>
+        <div class="stat-card" id="stat-mutaties">
+          <span class="stat-num">—</span><span class="stat-lbl">Mutatieregels</span>
+        </div>
+        <div class="stat-card" id="stat-btw">
+          <span class="stat-num">—</span><span class="stat-lbl">BTW-codes</span>
+        </div>
+        <div class="stat-card" id="stat-debcred" style="display:none">
+          <span class="stat-num">—</span><span class="stat-lbl">Deb / Cred</span>
+        </div>
+      </div>
+
+      <div id="aansluit-info"></div>
+
+      <div id="periode-wrap">
+        <div class="periode-header">
+          Periodefilter
+          <button class="btn-sm" id="periode-all">Alles</button>
+          <button class="btn-sm" id="periode-none">Niets</button>
+          <span id="periode-count"></span>
+        </div>
+        <div id="periode-checks"></div>
+      </div>
+
+      <div class="btn-row">
+        <button id="exportBtn">&#8659;&nbsp; Download Excel</button>
+        <button id="csvBtn">&#8659;&nbsp; Download CSV</button>
+      </div>
+
+      <footer style="margin-top: 32px; padding-top: 12px; border-top: 0.5px solid var(--bt-border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div style="font-size:11px;color:#6B7280;display:flex;align-items:center;gap:7px;">
+          <div style="width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0;"></div>
+          Geen data verlaat uw browser &mdash; volledig privé
+        </div>
+        <div class="bt-footer-minimal">
+          <div class="bt-dot"></div>
+          <span>een <strong>bouwman.tools</strong> product</span>
+          <div class="bt-tooltip">Gebouwd door Sylvain Bouwman</div>
+        </div>
+      </footer>
+
+    </div>
+  </div>
+
+  <!--
+    Worker code in a non-executed script block.
+    This avoids string-escaping issues when embedding worker source inline.
+  -->
+  <script id="worker-src" type="text/worker-src">
+    // Pure string-based XML parser — no DOMParser, works in all browsers/workers.
+
+    function signed(amnt, tp) {
+      var v = parseFloat(amnt) || 0;
+      return (tp || '').trim().toUpperCase() === 'C' ? -v : v;
+    }
+
+    // Find all complete <name>...</name> blocks in xml (non-recursive, no same-name nesting).
+    function getAll(xml, name) {
+      var results = [];
+      var open = '<' + name;
+      var close = '</' + name + '>';
+      var cLen = close.length;
+      var oLen = open.length;
+      var pos = 0;
+      while (true) {
+        var s = xml.indexOf(open, pos);
+        if (s === -1) break;
+        // Must be a proper tag boundary (not e.g. <journalEntry when looking for <journal)
+        var nc = xml[s + oLen];
+        if (nc !== '>' && nc !== ' ' && nc !== '\n' && nc !== '\r' && nc !== '\t' && nc !== '/') {
+          pos = s + 1; continue;
+        }
+        var e = xml.indexOf(close, s);
+        if (e === -1) break;
+        results.push(xml.slice(s, e + cLen));
+        pos = e + cLen;
+      }
+      return results;
+    }
+
+    // Get text content of first <name>text</name> (or <name attr>text</name>) in xml.
+    function getText(xml, name) {
+      var open1 = '<' + name + '>';
+      var open2 = '<' + name + ' ';
+      var close = '</' + name + '>';
+      var s = xml.indexOf(open1);
+      var contentStart;
+      if (s !== -1) {
+        contentStart = s + open1.length;
+      } else {
+        s = xml.indexOf(open2);
+        if (s === -1) return '';
+        var gt = xml.indexOf('>', s);
+        if (gt === -1 || xml[gt - 1] === '/') return ''; // not found or self-closing
+        contentStart = gt + 1;
+      }
+      var e = xml.indexOf(close, contentStart);
+      if (e === -1) return '';
+      var v = xml.slice(contentStart, e).trim();
+      var cd = v.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
+      return cd ? cd[1] : v;
+    }
+
+    // Extract direct leaf-element children as { localName: textContent }.
+    // Skips elements that contain nested tags (keeps only text-only children).
+    function childTextsStr(xml) {
+      var out = {};
+      var start = xml.indexOf('>') + 1;
+      var end   = xml.lastIndexOf('</');
+      if (start <= 0 || end <= start) return out;
+      var content = xml.slice(start, end);
+      var pos = 0;
+      while (pos < content.length) {
+        var ts = content.indexOf('<', pos);
+        if (ts === -1) break;
+        var c1 = content[ts + 1];
+        if (c1 === '/' || c1 === '!' || c1 === '?') {
+          var gt = content.indexOf('>', ts);
+          pos = gt === -1 ? content.length : gt + 1;
+          continue;
+        }
+        var gt = content.indexOf('>', ts + 1);
+        if (gt === -1) break;
+        if (content[gt - 1] === '/') { pos = gt + 1; continue; } // self-closing
+        var tagStr  = content.slice(ts + 1, gt);
+        var spaceAt = tagStr.search(/[\s]/);
+        var fullTag = spaceAt === -1 ? tagStr : tagStr.slice(0, spaceAt);
+        var local   = fullTag.indexOf(':') !== -1 ? fullTag.split(':')[1] : fullTag;
+        var ctag    = '</' + fullTag + '>';
+        var ce      = content.indexOf(ctag, gt + 1);
+        if (ce === -1) { pos = gt + 1; continue; }
+        var inner = content.slice(gt + 1, ce);
+        if (inner.indexOf('<') === -1 && !(local in out)) {
+          var v = inner.trim();
+          var cd = v.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
+          out[local] = cd ? cd[1] : v;
+        }
+        pos = ce + ctag.length;
+      }
+      return out;
+    }
+
+    function parseHeader(xml) {
+      // Detect XAF version from xmlns attribute
+      var nsm = xml.match(/xmlns\s*=\s*["']([^"']*)["']/);
+      var ns  = nsm ? nsm[1] : '';
+      var vm  = ns.match(/XAF[\/_](\d+[\._]\d+)/i);
+      var xafVersion = vm ? vm[1].replace('_', '.') : (ns || 'onbekend');
+
+      var hXml = getAll(xml, 'header')[0] || '';
+      var hi = childTextsStr(hXml);
+
+      // In XAF 3.2 the entire file is nested inside <company>, so </company> only
+      // appears after </transactions>. We cannot rely on finding a complete company
+      // element in the header slice. Instead: take the slice from <company> up to
+      // the first complex nested child (which holds no company-level leaf fields).
+      var compStart = xml.indexOf('<company');
+      var ci = {};
+      if (compStart !== -1) {
+        var stoppers = ['<customersSuppliers', '<generalLedger', '<streetAddress', '<postalAddress', '<transactions'];
+        var scopeEnd = xml.length;
+        stoppers.forEach(function(sw) {
+          var i = xml.indexOf(sw, compStart);
+          if (i !== -1 && i < scopeEnd) scopeEnd = i;
+        });
+        ci = childTextsStr('<company>' + xml.slice(compStart, scopeEnd) + '</company>');
+      }
+
+      var bedrijf = [
+        ['Onderdeel', 'Waarde'],
+        ['XAF-versie',     xafVersion],
+        ['Bedrijfsnaam',   ci.companyName                      || ''],
+        ['KvK-nummer',     ci.Commercenr || ci.companyIdent    || ''],
+        ['BTW-nummer',     ci.taxRegIdent                      || ''],
+        ['BTW-land',       ci.taxRegistrationCountry           || ''],
+        ['Boekjaar',       hi.fiscalYear                       || ''],
+        ['Startdatum',     hi.startDate                        || ''],
+        ['Einddatum',      hi.endDate                          || ''],
+        ['Valuta',         hi.curCode                          || ''],
+        ['Aangemaakt op',  hi.dateCreated                      || ''],
+        ['Software',       hi.softwareDesc                     || ''],
+        ['Softwareversie', hi.softwareVersion                  || ''],
+        ['RGS-versie',     hi.RGSVersion                       || ''],
+      ];
+
+      var accH = ['accID', 'accDesc', 'accTp', 'RGScode', 'leadCode', 'leadDescription'];
+      var accs = [accH];
+      getAll(xml, 'ledgerAccount').forEach(function(el) {
+        var t = childTextsStr(el);
+        accs.push(accH.map(function(k) { return t[k] || ''; }));
+      });
+
+      var vatH = ['vatID', 'vatDesc', 'vatToPayAccID', 'vatToClaimAccID'];
+      var vats = [vatH];
+      getAll(xml, 'vatCode').forEach(function(el) {
+        var t = childTextsStr(el);
+        vats.push(vatH.map(function(k) { return t[k] || ''; }));
+      });
+
+      var accMap = {};
+      accs.slice(1).forEach(function(row) { accMap[row[0]] = row[1]; }); // accID → accDesc
+
+      var obH = ['nr', 'accID', 'accDesc', 'amnt', 'amntTp', 'bedrag'];
+      var obs = [obH];
+      getAll(xml, 'obLine').forEach(function(el) {
+        var t = childTextsStr(el);
+        obs.push([t.nr || '', t.accID || '', accMap[t.accID] || '', parseFloat(t.amnt) || 0, t.amntTp || '', signed(t.amnt, t.amntTp)]);
+      });
+
+      var csH = ['custSupID', 'custSupName', 'custSupTp', 'commerceNr', 'taxRegIdent', 'contact', 'telephone', 'eMail'];
+      var custSups = [csH];
+      getAll(xml, 'customerSupplier').forEach(function(el) {
+        var t = childTextsStr(el);
+        custSups.push(csH.map(function(k) { return t[k] || ''; }));
+      });
+
+      return { bedrijf: bedrijf, accs: accs, vats: vats, obs: obs, custSups: custSups };
+    }
+
+    var LINE_H = [
+      'jrnID', 'jrn_desc', 'jrnTp',
+      'tx_nr', 'tx_desc', 'tx_periodNumber', 'tx_trDt',
+      'line_nr', 'line_accID', 'line_docRef', 'line_effDate',
+      'line_desc', 'line_amnt', 'line_amntTp', 'bedrag',
+      'vatID', 'vatAmnt', 'vatPerc',
+    ];
+
+    function parseJournal(jrnXml, rows) {
+      var jt     = childTextsStr(jrnXml);
+      var jrnID  = jt.jrnID || '', jrnDesc = jt.desc || '', jrnTp = jt.jrnTp || '';
+
+      getAll(jrnXml, 'transaction').forEach(function(txXml) {
+        var tx = childTextsStr(txXml);
+
+        getAll(txXml, 'trLine').forEach(function(trXml) {
+          var li      = childTextsStr(trXml);
+          var vatXmls = getAll(trXml, 'vat');
+          var vi      = vatXmls.length ? childTextsStr(vatXmls[0]) : {};
+
+          rows.push([
+            jrnID, jrnDesc, jrnTp,
+            tx.nr || '', tx.desc || '', tx.periodNumber || '', tx.trDt || '',
+            li.nr || '', li.accID || '', li.docRef || '', li.effDate || '',
+            li.desc || '', parseFloat(li.amnt) || 0, li.amntTp || '', signed(li.amnt, li.amntTp),
+            vi.vatID || '', parseFloat(vi.vatAmnt) || 0, vi.vatPerc || '',
+          ]);
+        });
+      });
+    }
+
+    self.onmessage = async function(e) {
+      var file = e.data;
+      try {
+        var mb = Math.round(file.size / 1024 / 1024);
+        self.postMessage({ type: 'status', msg: 'Inlezen (' + mb + ' MB)…' });
+
+        var text = await file.text();
+
+        self.postMessage({ type: 'status', msg: 'Structuur analyseren…' });
+
+        var tIdx = text.search(/<transactions[\s>]/);
+
+        var headerXml = tIdx === -1 ? text : text.slice(0, tIdx);
+        var transText = tIdx === -1 ? null  : text.slice(tIdx);
+        text = null;
+
+        var hd = parseHeader(headerXml);
+        headerXml = null;
+
+        var rows = [];
+
+        if (transText) {
+          var jCount = 0, cp = 0;
+          while ((cp = transText.indexOf('</journal>', cp)) !== -1) { jCount++; cp += 10; }
+
+          self.postMessage({ type: 'status', msg: 'Mutaties verwerken (' + jCount + ' dagboeken)…' });
+
+          var pos = 0, done = 0;
+          while (true) {
+            var jS = transText.indexOf('<journal', pos);
+            if (jS === -1) break;
+            var jE = transText.indexOf('</journal>', jS);
+            if (jE === -1) break;
+            jE += 10;
+
+            parseJournal(transText.slice(jS, jE), rows);
+
+            pos = jE;
+            done++;
+            if (done % 100 === 0 || done === jCount) {
+              self.postMessage({ type: 'progress', done: done, total: jCount, lines: rows.length });
+            }
+          }
+        }
+
+        self.postMessage({
+          type:     'done',
+          bedrijf:  hd.bedrijf,
+          accs:     hd.accs,
+          vats:     hd.vats,
+          obs:      hd.obs,
+          custSups: hd.custSups,
+          lineH:    LINE_H,
+          rows:     rows,
+        });
+      } catch (err) {
+        self.postMessage({ type: 'error', msg: err.message });
+      }
+    };
+  </script>
+
+  <script>
+  (function () {
+    var parsed   = null;
+    var fileName = '';
+    var worker   = null;
+
+    var fileInput  = document.getElementById('fileInput');
+    var statusEl   = document.getElementById('status');
+    var progWrap   = document.getElementById('prog-wrap');
+    var progFill   = document.getElementById('prog-fill');
+    var progLabel  = document.getElementById('prog-label');
+    var aansluitEl = document.getElementById('aansluit-info');
+    var exportBtn  = document.getElementById('exportBtn');
+    var csvBtn     = document.getElementById('csvBtn');
+
+    function setStatCard(id, val, lbl) {
+      var el = document.getElementById(id);
+      el.querySelector('.stat-num').textContent = val;
+      if (lbl) el.querySelector('.stat-lbl').textContent = lbl;
+    }
+
+    function setStatus(msg, cls) {
+      statusEl.textContent = msg;
+      statusEl.className   = cls || '';
+    }
+
+    function setProgress(pct, label) {
+      progWrap.style.display = 'block';
+      progFill.style.width   = pct + '%';
+      progLabel.textContent  = label || '';
+    }
+
+    function hideProgress() {
+      progWrap.style.display = 'none';
+      progFill.style.width   = '0%';
+    }
+
+    function fmt(n) { return n.toLocaleString('nl-NL'); }
+
+    // ── Period filter ────────────────────────────────────────────────────
+    function renderPeriodFilter(rows) {
+      var periods = {};
+      rows.forEach(function(r) { periods[String(r[IDX_PERIOD])] = true; });
+      var sorted = Object.keys(periods).sort(function(a, b) {
+        return (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0);
+      });
+
+      var checksEl = document.getElementById('periode-checks');
+      checksEl.innerHTML = '';
+      sorted.forEach(function(p) {
+        var lbl  = document.createElement('label');
+        lbl.className = 'periode-cb';
+        var cb   = document.createElement('input');
+        cb.type  = 'checkbox'; cb.value = p; cb.checked = true;
+        var chip = document.createElement('span');
+        chip.className   = 'chip';
+        chip.textContent = 'P' + p;
+        lbl.appendChild(cb);
+        lbl.appendChild(chip);
+        checksEl.appendChild(lbl);
+      });
+      document.getElementById('periode-wrap').style.display = 'block';
+    }
+
+    function updatePeriodCount() {
+      if (!parsed) return;
+      var filtered = filterRows(parsed.rows);
+      var total    = parsed.rows.length;
+      var el       = document.getElementById('periode-count');
+      el.textContent = filtered.length === total
+        ? fmt(total) + ' regels'
+        : fmt(filtered.length) + ' van ' + fmt(total) + ' regels';
+      // Keep mutaties stat card in sync with selection
+      setStatCard('stat-mutaties', fmt(filtered.length),
+        filtered.length < total ? 'Geselecteerd' : 'Mutatieregels');
+    }
+
+    function filterRows(rows) {
+      var cbs = document.querySelectorAll('#periode-checks input');
+      var total = cbs.length;
+      if (!total) return rows;
+      var sel = {}, checked = 0;
+      cbs.forEach(function(cb) { if (cb.checked) { sel[cb.value] = true; checked++; } });
+      if (checked >= total) return rows;
+      return rows.filter(function(r) { return sel[String(r[IDX_PERIOD])]; });
+    }
+
+    // ── Aansluitcheck ────────────────────────────────────────────────────
+    function computeAansluitcheck(rows) {
+      var txMap = {}, txOrder = [];
+      rows.forEach(function(r) {
+        var key = r[0] + '\xA7' + r[3];
+        if (!txMap[key]) {
+          txMap[key] = { jrnID: r[0], jrn_desc: r[1], jrnTp: r[2], tx_nr: r[3], tx_desc: r[4], tx_trDt: r[6], deb: 0, crd: 0 };
+          txOrder.push(key);
+        }
+        var b = r[IDX_BEDRAG];
+        if (b > 0) txMap[key].deb += b;
+        else       txMap[key].crd += b;
+      });
+
+      var unbalanced = [];
+      txOrder.forEach(function(key) {
+        var tx = txMap[key];
+        var v  = Math.round((tx.deb + tx.crd) * 100) / 100;
+        if (Math.abs(v) >= 0.01)
+          unbalanced.push([
+            tx.jrnID, tx.jrn_desc, tx.jrnTp, tx.tx_nr, tx.tx_desc, tx.tx_trDt,
+            Math.round(tx.deb * 100) / 100,
+            Math.round(Math.abs(tx.crd) * 100) / 100,
+            v
+          ]);
+      });
+      return { total: txOrder.length, unbalanced: unbalanced };
+    }
+
+    // ── CSV export ───────────────────────────────────────────────────────
+    function downloadCSV(data, baseName) {
+      setStatus('CSV genereren…');
+      csvBtn.disabled = true;
+      setTimeout(function() {
+        try {
+          var sep   = ';';
+          var rows  = filterRows(data.rows);
+          var lines = [data.lineH.join(sep)];
+          rows.forEach(function(r) {
+            lines.push(r.map(function(v) {
+              if (v === null || v === undefined) return '';
+              var s = String(v);
+              if (s.indexOf(sep) !== -1 || s.indexOf('"') !== -1 ||
+                  s.indexOf('\n') !== -1 || s.indexOf('\r') !== -1)
+                s = '"' + s.replace(/"/g, '""') + '"';
+              return s;
+            }).join(sep));
+          });
+          var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+          var url  = URL.createObjectURL(blob);
+          var a    = document.createElement('a');
+          a.href = url; a.download = baseName + '_mutaties.csv';
+          document.body.appendChild(a); a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          setStatus('Klaar.', 'ok');
+        } catch (ex) {
+          setStatus('CSV fout: ' + ex.message, 'err');
+        }
+        csvBtn.disabled = false;
+      }, 50);
+    }
+
+    // ── Excel export ─────────────────────────────────────────────────────
+    var MAX_ROWS   = 1000000; // Excel hard limit is 1 048 576
+    var IDX_PERIOD = 5;      // tx_periodNumber column index in rows
+    var IDX_BEDRAG = 14;     // bedrag (signed) column index in rows
+
+    function addSheet(wb, name, headers, dataRows) {
+      // Split into multiple sheets when row count exceeds Excel's limit
+      var chunks = [];
+      if (dataRows.length <= MAX_ROWS) {
+        chunks.push(dataRows);
+      } else {
+        for (var i = 0; i < dataRows.length; i += MAX_ROWS)
+          chunks.push(dataRows.slice(i, i + MAX_ROWS));
+      }
+
+      chunks.forEach(function(chunk, idx) {
+        var sheetName = chunks.length === 1 ? name : name + ' (' + (idx + 1) + ')';
+        var aoa = [headers].concat(chunk);
+        var ws  = XLSX.utils.aoa_to_sheet(aoa);
+
+        // Column widths: only scan first 10 000 rows to keep this fast
+        var sample = aoa.length > 10001 ? aoa.slice(0, 10001) : aoa;
+        var cols = headers.map(function(h, ci) {
+          var max = String(h).length + 2;
+          sample.forEach(function(row) {
+            var v = row[ci] != null ? String(row[ci]) : '';
+            if (v.length > max) max = v.length;
+          });
+          return { wch: Math.min(max, 60) };
+        });
+        ws['!cols'] = cols;
+
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      });
+    }
+
+    function buildExcel(data, baseName) {
+      setStatus('Excel genereren…');
+      exportBtn.disabled = true;
+
+      // Defer one tick so the status message renders before we block
+      setTimeout(function() {
+        try {
+          var wb           = XLSX.utils.book_new();
+          var filteredRows = filterRows(data.rows);
+
+          var wsBedrijf = XLSX.utils.aoa_to_sheet(data.bedrijf);
+          XLSX.utils.book_append_sheet(wb, wsBedrijf, 'Bedrijfsgegevens');
+
+          addSheet(wb, 'Grootboekrekeningen', data.accs[0],     data.accs.slice(1));
+          addSheet(wb, 'BTW-codes',           data.vats[0],     data.vats.slice(1));
+          addSheet(wb, 'Beginsaldi',          data.obs[0],      data.obs.slice(1));
+          if (data.custSups && data.custSups.length > 1)
+            addSheet(wb, 'Deb_Cred',          data.custSups[0], data.custSups.slice(1));
+          addSheet(wb, 'Mutaties',            data.lineH,       filteredRows);
+
+          // Aansluitcheck always over ALL rows (period filter doesn't hide errors)
+          var ac = computeAansluitcheck(data.rows);
+          if (ac.unbalanced.length > 0)
+            addSheet(wb, 'Aansluitcheck',
+              ['jrnID','jrn_desc','jrnTp','tx_nr','tx_desc','tx_trDt','debet','credit','verschil'],
+              ac.unbalanced);
+
+          XLSX.writeFile(wb, baseName + '_raw.xlsx');
+          setStatus('Klaar.', 'ok');
+        } catch (ex) {
+          setStatus('Excel fout: ' + ex.message, 'err');
+        }
+        exportBtn.disabled = false;
+      }, 50);
+    }
+
+    // ── Drag & drop ───────────────────────────────────────────────────────
+    var dropLabel = document.querySelector('label.drop');
+    ['dragover', 'dragenter'].forEach(function(ev) {
+      dropLabel.addEventListener(ev, function(e) { e.preventDefault(); e.stopPropagation(); dropLabel.classList.add('dragover'); });
+    });
+    ['dragleave', 'dragend'].forEach(function(ev) {
+      dropLabel.addEventListener(ev, function() { dropLabel.classList.remove('dragover'); });
+    });
+    dropLabel.addEventListener('drop', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      dropLabel.classList.remove('dragover');
+      var file = e.dataTransfer && e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+
+    // ── File input ────────────────────────────────────────────────────────
+    fileInput.addEventListener('change', function() {
+      var file = fileInput.files[0];
+      if (!file) return;
+      handleFile(file);
+    });
+
+    function handleFile(file) {
+
+      if (worker) { worker.terminate(); worker = null; }
+
+      fileName = file.name.replace(/\.(xaf|xml)$/i, '');
+      parsed   = null;
+      exportBtn.style.display = 'none';
+      csvBtn.style.display    = 'none';
+      aansluitEl.textContent  = '';
+      aansluitEl.className    = '';
+      document.getElementById('stats-grid').style.display        = 'none';
+      document.getElementById('stat-debcred').style.display      = 'none';
+      document.getElementById('periode-wrap').style.display      = 'none';
+      document.getElementById('periode-checks').innerHTML        = '';
+      document.getElementById('periode-count').textContent       = '';
+      hideProgress();
+      setStatus('Starten…');
+
+      var src  = document.getElementById('worker-src').textContent;
+      var blob = new Blob([src], { type: 'application/javascript' });
+      worker   = new Worker(URL.createObjectURL(blob));
+
+      worker.onmessage = function(e) {
+        var msg = e.data;
+        if (msg.type === 'status') {
+          setStatus(msg.msg);
+        } else if (msg.type === 'progress') {
+          var pct = msg.total > 0 ? Math.round(msg.done / msg.total * 100) : 0;
+          setProgress(pct,
+            msg.done + ' / ' + msg.total + ' dagboeken  ·  ' +
+            fmt(msg.lines) + ' mutatieregels');
+        } else if (msg.type === 'done') {
+          hideProgress();
+          parsed = msg;
+          var nLines = msg.rows.length;
+          var nCs    = msg.custSups ? msg.custSups.length - 1 : 0;
+          setStatus('Ingelezen.', 'ok');
+
+          // Stat cards
+          setStatCard('stat-rekeningen', fmt(msg.accs.length - 1));
+          setStatCard('stat-beginsaldi', fmt(msg.obs.length  - 1));
+          setStatCard('stat-mutaties',   fmt(nLines),
+            nLines > MAX_ROWS ? 'regels (gesplitst)' : 'Mutatieregels');
+          setStatCard('stat-btw', fmt(msg.vats.length - 1));
+          if (nCs > 0) {
+            setStatCard('stat-debcred', fmt(nCs));
+            document.getElementById('stat-debcred').style.display = 'flex';
+          }
+          document.getElementById('stats-grid').style.display = 'grid';
+
+          // Aansluitcheck badge
+          var ac = computeAansluitcheck(msg.rows);
+          if (ac.unbalanced.length === 0) {
+            aansluitEl.textContent = '✓  Alle ' + fmt(ac.total) + ' transacties sluiten aan';
+            aansluitEl.className = 'ok';
+          } else {
+            aansluitEl.textContent = '⚠  ' + fmt(ac.unbalanced.length) + ' van ' +
+              fmt(ac.total) + ' transacties sluiten niet aan — zie tabblad Aansluitcheck';
+            aansluitEl.className = 'warn';
+          }
+
+          // Period filter + live count
+          renderPeriodFilter(msg.rows);
+          updatePeriodCount();
+
+          exportBtn.style.display = 'inline-block';
+          csvBtn.style.display    = 'inline-block';
+          worker = null;
+        } else if (msg.type === 'error') {
+          hideProgress();
+          setStatus('Fout: ' + msg.msg, 'err');
+          worker = null;
+        }
+      };
+
+      worker.onerror = function(e) {
+        setStatus('Worker fout: ' + e.message, 'err');
+        worker = null;
+      };
+
+      worker.postMessage(file);
+    }
+
+    exportBtn.addEventListener('click', function() {
+      if (!parsed) return;
+      buildExcel(parsed, fileName);
+    });
+
+    csvBtn.addEventListener('click', function() {
+      if (!parsed) return;
+      downloadCSV(parsed, fileName);
+    });
+
+    document.getElementById('periode-all').addEventListener('click', function() {
+      document.querySelectorAll('#periode-checks input').forEach(function(cb) { cb.checked = true; });
+      updatePeriodCount();
+    });
+
+    document.getElementById('periode-none').addEventListener('click', function() {
+      document.querySelectorAll('#periode-checks input').forEach(function(cb) { cb.checked = false; });
+      updatePeriodCount();
+    });
+
+    document.getElementById('periode-checks').addEventListener('change', updatePeriodCount);
+  })();
+  </script>
+<a href="/" style="position:fixed;top:14px;left:14px;z-index:9999;display:inline-flex;align-items:center;gap:6px;background:#2C1A0E;color:#F5EBE0;font-size:12px;font-weight:500;padding:6px 14px;border-radius:20px;text-decoration:none;opacity:.85;font-family:system-ui,-apple-system,sans-serif;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.85">&#8592; bouwman.tools</a>
+<div class="bt-privacy-pill" style="position:fixed;top:50px;right:14px;z-index:9998;display:inline-flex;align-items:center;gap:6px;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;font-size:11px;font-weight:500;padding:4px 12px;border-radius:20px;font-family:system-ui,-apple-system,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.08);"><div style="width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0;"></div>Geen data verstuurd</div>
+<a href="/cdn-cgi/access/logout" style="position:fixed;top:14px;right:14px;z-index:9998;font-size:11px;color:#A07860;text-decoration:none;background:#fff;border:1px solid #E8C4A8;padding:4px 12px;border-radius:20px;font-family:system-ui,-apple-system,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.08);" class="bt-logout-btn">Uitloggen</a>
+</body>
+</html>
