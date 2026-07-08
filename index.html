@@ -319,6 +319,8 @@
       var accMap = {};
       accs.slice(1).forEach(function(row) { accMap[row[0]] = row[1]; }); // accID → accDesc
 
+      var custSupMap = {};
+
       var obH = ['nr', 'accID', 'accDesc', 'amnt', 'amntTp', 'bedrag'];
       var obs = [obH];
       getAll(xml, 'obLine').forEach(function(el) {
@@ -340,20 +342,22 @@
           t.telephone   || '',
           t.eMail       || '',
         ]);
+        if (t.custSupID) custSupMap[t.custSupID] = t.custSupName || '';
       });
 
-      return { bedrijf: bedrijf, accs: accs, vats: vats, obs: obs, custSups: custSups };
+      return { bedrijf: bedrijf, accs: accs, vats: vats, obs: obs, custSups: custSups, accMap: accMap, custSupMap: custSupMap };
     }
 
     var LINE_H = [
       'jrnID', 'jrn_desc', 'jrnTp',
       'tx_nr', 'tx_desc', 'tx_periodNumber', 'tx_trDt',
-      'line_nr', 'line_accID', 'line_docRef', 'line_effDate',
+      'line_nr', 'line_accID', 'line_accDesc', 'line_docRef', 'line_effDate',
       'line_desc', 'line_amnt', 'line_amntTp', 'bedrag',
       'vatID', 'vatAmnt', 'vatPerc',
+      'custSupID', 'custSupName',
     ];
 
-    function parseJournal(jrnXml, rows) {
+    function parseJournal(jrnXml, rows, accMap, custSupMap) {
       var jt     = childTextsStr(jrnXml);
       var jrnID  = jt.jrnID || '', jrnDesc = jt.desc || '', jrnTp = jt.jrnTp || '';
 
@@ -364,13 +368,15 @@
           var li      = childTextsStr(trXml);
           var vatXmls = getAll(trXml, 'vat');
           var vi      = vatXmls.length ? childTextsStr(vatXmls[0]) : {};
+          var csID    = li.custSupID || '';
 
           rows.push([
             jrnID, jrnDesc, jrnTp,
             tx.nr || '', tx.desc || '', tx.periodNumber || '', tx.trDt || '',
-            li.nr || '', li.accID || '', li.docRef || '', li.effDate || '',
+            li.nr || '', li.accID || '', (accMap && accMap[li.accID]) || '', li.docRef || '', li.effDate || '',
             li.desc || '', parseFloat(li.amnt) || 0, li.amntTp || '', signed(li.amnt, li.amntTp),
             vi.vatID || '', parseFloat(vi.vatAmnt) || 0, vi.vatPerc || '',
+            csID, (custSupMap && csID && custSupMap[csID]) || '',
           ]);
         });
       });
@@ -404,6 +410,7 @@
           var charsRead = 0;
           var totalSize = file.size;
           var lastPct = -1;
+          var accMap = {}, custSupMap = {};
 
           try {
             while (true) {
@@ -429,6 +436,8 @@
                   if (!merged.vats     || merged.vats.length     <= 1) merged.vats     = hd.vats;
                   if (!merged.obs      || merged.obs.length      <= 1) merged.obs      = hd.obs;
                   if (!merged.custSups || merged.custSups.length <= 1) merged.custSups = hd.custSups;
+                  accMap     = hd.accMap     || {};
+                  custSupMap = hd.custSupMap || {};
 
                   self.postMessage({ type: 'status', msg: pfx + 'Mutaties verwerken…' });
                 }
@@ -443,7 +452,7 @@
                   var jE = buffer.indexOf('</journal>', jS);
                   if (jE === -1) break;
                   jE += 10;
-                  parseJournal(buffer.slice(jS, jE), merged.rows);
+                  parseJournal(buffer.slice(jS, jE), merged.rows, accMap, custSupMap);
                   pos = jE;
                   processedUpTo = jE;
                   jDone++;
@@ -666,7 +675,7 @@
     // ── Excel export ─────────────────────────────────────────────────────
     var MAX_ROWS   = 500000;  // SheetJS crasht boven ~15M cellen per sheet (18 kol × 500K = 9M)
     var IDX_PERIOD = 5;      // tx_periodNumber column index in rows
-    var IDX_BEDRAG = 14;     // bedrag (signed) column index in rows
+    var IDX_BEDRAG = 15;     // bedrag (signed) column index in rows  (+1 voor line_accDesc)
 
     function addSheet(wb, name, headers, dataRows) {
       // Split into multiple sheets when row count exceeds Excel's limit
@@ -714,7 +723,7 @@
       // Mutaties per rekening
       var mutD = {}, mutC = {};
       rows.forEach(function(r) {
-        var id = r[8], b = r[14];
+        var id = r[8], b = r[IDX_BEDRAG];
         if (b > 0) mutD[id] = (mutD[id] || 0) + b;
         else if (b < 0) mutC[id] = (mutC[id] || 0) - b;
       });
