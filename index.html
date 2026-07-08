@@ -660,7 +660,7 @@
     }
 
     // ── Excel export ─────────────────────────────────────────────────────
-    var MAX_ROWS   = 1000000; // Excel hard limit is 1 048 576
+    var MAX_ROWS   = 500000;  // SheetJS crasht boven ~15M cellen per sheet (18 kol × 500K = 9M)
     var IDX_PERIOD = 5;      // tx_periodNumber column index in rows
     var IDX_BEDRAG = 14;     // bedrag (signed) column index in rows
 
@@ -861,8 +861,8 @@
           // Stat cards
           setStatCard('stat-rekeningen', fmt(msg.accs.length - 1));
           setStatCard('stat-beginsaldi', fmt(msg.obs.length  - 1));
-          setStatCard('stat-mutaties',   fmt(nLines),
-            nLines > MAX_ROWS ? 'regels (gesplitst)' : 'Mutatieregels');
+          var mutLbl = nLines > MAX_ROWS * 4 ? 'regels (gebruik CSV!)' : nLines > MAX_ROWS ? 'regels (gesplitst)' : 'Mutatieregels';
+          setStatCard('stat-mutaties', fmt(nLines), mutLbl);
           setStatCard('stat-btw', fmt(msg.vats.length - 1));
           if (nCs > 0) {
             setStatCard('stat-debcred', fmt(nCs));
