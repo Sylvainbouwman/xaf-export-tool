@@ -29,7 +29,7 @@ Exact Globe Next splitst grote exports in meerdere bestanden (bijv. `_0.XAF` met
 | BTW-codes | vatID, omschrijving, rekeningen — gesorteerd |
 | Beginsaldi | Openingssaldi per grootboekrekening — gesorteerd op rekeningnummer |
 | Deb / Cred | Debiteur/crediteur stamgegevens (indien aanwezig) — gesorteerd |
-| Kolommenbalans | Beginsaldo, mutaties en eindsaldo per rekening (D/C) — gesorteerd |
+| Kolommenbalans | Beg.saldo Debet/Credit, Mutaties Debet/Credit, Eindsaldo Debet/Credit en **Saldo** per rekening — gesorteerd |
 | Mutaties | Alle journaalregels met dagboek, transactie, rekening + omschrijving, relatie en BTW |
 | Aansluitcheck | Alleen aanwezig bij individuele onbalans; bovenaan het bestandsniveau |
 
@@ -37,9 +37,20 @@ Alle tabbladen met rekeningnummers zijn gesorteerd op rekeningnummer (numeriek).
 
 ### Kolommen in het Mutaties-tabblad
 
-`jrnID` · `jrn_desc` · `jrnTp` · `tx_nr` · `tx_desc` · `tx_periodNumber` · `tx_trDt` · `line_nr` · `line_accID` · **`line_accDesc`** · `line_docRef` · `line_effDate` · `line_desc` · `line_amnt` · `line_amntTp` · `bedrag` · `vatID` · `vatAmnt` · `vatPerc` · **`custSupID`** · **`custSupName`**
+`jrnID` · `jrn_desc` · `jrnTp` · `tx_nr` · `tx_desc` · `tx_periodNumber` · `tx_trDt` · `line_nr` · `line_accID` · `line_accDesc` · `line_docRef` · `line_effDate` · `line_desc` · `line_amnt` · `line_amntTp` · `bedrag` · `vatID` · `vatAmnt` · `vatPerc` · `custSupID` · `custSupName`
 
-Vetgedrukt = recent toegevoegd. `line_accDesc` bevat de rekeningomschrijving; `custSupID` en `custSupName` bevatten de gekoppelde debiteur of crediteur.
+`line_accDesc` bevat de rekeningomschrijving; `custSupID` en `custSupName` bevatten de gekoppelde debiteur of crediteur.
+
+---
+
+## Beginsaldi niet in auditfile
+
+Sommige pakketten (waaronder Microsoft Dynamics NAV) leveren geen beginsaldi mee in de auditfile. De tool detecteert dit automatisch:
+
+- De stat-card **Beginsaldi** toont `— / Niet in auditfile`
+- Een gele waarschuwing verschijnt direct onder de stat-cards
+- In de Excel staat in het tabblad **Bedrijfsgegevens** een extra rij: `Beginsaldi | Niet opgenomen in auditfile`
+- Het tabblad **Beginsaldi** bevat een tekstmelding in plaats van een lege tabel
 
 ---
 
@@ -75,25 +86,24 @@ Bij meer dan 500.000 mutatieregels verschijnt onder de downloadknoppen automatis
 
 Maak een gerichte selectie en download alleen wat je nodig hebt:
 
-1. Kies een rekening uit de dropdown (bevat alle rekeningen met mutaties, gesorteerd)
-2. Klik **+ Voeg toe** — de rekening verschijnt als chip
-3. Voeg meerdere rekeningen toe indien gewenst
+1. Kies één of meer rekeningen uit de lijst — **Ctrl+klik** selecteert meerdere tegelijk, **Shift+klik** een aaneengesloten reeks
+2. Klik **+ Voeg toe** — alle geselecteerde rekeningen verschijnen als chips
+3. Voeg indien gewenst meer rekeningen toe
 4. Typ optioneel een zoekterm om te filteren op boekingsomschrijving of relatienaam
 5. Combineer met de **periodefilter** bovenaan voor extra verfijning
 
-Direct zichtbaar: aantal regels, debet/credit totalen en of de selectie aansluit (✓ / ⚠).
-Een preview toont de eerste 10 regels.
+Direct zichtbaar: een mini-kolommenbalans per rekening met beg.saldo, mutaties debet/credit, eindsaldo en **saldo**, gevolgd door een preview van de eerste 10 mutatieregels.
 
 **Download als 1 Excel** — alle geselecteerde rekeningen in één bestand (geblokkeerd bij > 500.000 regels).
 
-**Download per rekening (losse bestanden)** — downloadt automatisch één Excel per geselecteerde rekening, elk benoemd als `[bestandsnaam]_rek[nummer].xlsx`. De periodefilter wordt meegenomen.
+**Download per rekening (losse bestanden)** — downloadt automatisch één Excel per geselecteerde rekening, elk benoemd als `[bestandsnaam]_rek[nummer].xlsx`. De periodefilter wordt meegenomen. Elk bestand bevat een Bedrijfsgegevens-tab (inclusief eventuele beginsaldi-opmerking).
 
 ---
 
 ## Extra functies
 
 - **Aansluitcheck**: direct na inlezen zie je of debet = credit aansluit op bestandsniveau
-- **Kolommenbalans**: beginsaldo + mutaties (gefilterd op geselecteerde perioden) + eindsaldo per rekening
+- **Kolommenbalans**: beg.saldo + mutaties + eindsaldo + saldo per rekening, gefilterd op geselecteerde perioden
 - **Periodefilter**: klikbare chips; live teller toont hoeveel regels de selectie oplevert
 - **CSV-download**: alle mutatieregels als puntkomma-gescheiden CSV met UTF-8 BOM — opent direct correct in Nederlandse Excel
 
