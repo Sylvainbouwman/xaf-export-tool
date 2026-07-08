@@ -533,8 +533,13 @@
     }
 
     // ── Aansluitcheck ────────────────────────────────────────────────────
+    function fmtEur(n) {
+      return n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
     function computeAansluitcheck(rows) {
       var txMap = {}, txOrder = [];
+      var totalDeb = 0, totalCrd = 0;
       rows.forEach(function(r) {
         var key = r[0] + '\xA7' + r[3];
         if (!txMap[key]) {
@@ -542,9 +547,12 @@
           txOrder.push(key);
         }
         var b = r[IDX_BEDRAG];
-        if (b > 0) txMap[key].deb += b;
-        else       txMap[key].crd += b;
+        if (b > 0) { txMap[key].deb += b; totalDeb += b; }
+        else        { txMap[key].crd += b; totalCrd += b; }
       });
+
+      totalDeb = Math.round(totalDeb * 100) / 100;
+      totalCrd = Math.round(Math.abs(totalCrd) * 100) / 100;
 
       var unbalanced = [];
       txOrder.forEach(function(key) {
@@ -558,7 +566,7 @@
             v
           ]);
       });
-      return { total: txOrder.length, unbalanced: unbalanced };
+      return { total: txOrder.length, unbalanced: unbalanced, totalDeb: totalDeb, totalCrd: totalCrd };
     }
 
     // ── CSV export ───────────────────────────────────────────────────────
@@ -751,14 +759,18 @@
           }
           document.getElementById('stats-grid').style.display = 'grid';
 
-          // Aansluitcheck badge
+          // Aansluitcheck badge — primair op bestandsniveau (debet = credit)
           var ac = computeAansluitcheck(msg.rows);
-          if (ac.unbalanced.length === 0) {
-            aansluitEl.textContent = '✓  Alle ' + fmt(ac.total) + ' transacties sluiten aan';
+          var diff = Math.round(Math.abs(ac.totalDeb - ac.totalCrd) * 100) / 100;
+          if (diff < 0.01) {
+            var txNote = ac.unbalanced.length > 0
+              ? '  (' + fmt(ac.unbalanced.length) + ' van ' + fmt(ac.total) + ' transacties individueel niet sluitend — zie Aansluitcheck-tabblad)'
+              : '';
+            aansluitEl.textContent = '✓  Totaal sluit: debet = credit = € ' + fmtEur(ac.totalDeb) + txNote;
             aansluitEl.className = 'ok';
           } else {
-            aansluitEl.textContent = '⚠  ' + fmt(ac.unbalanced.length) + ' van ' +
-              fmt(ac.total) + ' transacties sluiten niet aan — zie tabblad Aansluitcheck';
+            aansluitEl.textContent = '⚠  Totaal sluit NIET: debet € ' + fmtEur(ac.totalDeb) +
+              ' ≠ credit € ' + fmtEur(ac.totalCrd) + ' (verschil € ' + fmtEur(diff) + ')';
             aansluitEl.className = 'warn';
           }
 
