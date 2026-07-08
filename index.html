@@ -199,6 +199,9 @@
             <button id="kb-dl" class="lft-btn lft-btn-sec">&#128202;&nbsp; Download kolommenbalans</button>
             <span class="lft-hint">Rekeningen + beginsaldi + saldo's — altijd klein en snel</span>
           </div>
+          <div id="obs-warning" style="display:none;margin-top:8px;padding:7px 10px;background:#fef9c3;border:1px solid #fde047;border-radius:6px;font-size:0.8rem;color:#713f12;">
+            &#9888;&nbsp; Deze auditfile bevat <strong>geen beginsaldi</strong>. Het pakket heeft ze niet meegeleverd — beg.saldo staat overal op 0.
+          </div>
         </div>
 
         <!-- Rekening selectie -->
@@ -598,6 +601,7 @@
           accs:     merged.accs     || [['accID', 'accDesc', 'accTp', 'RGScode', 'leadCode', 'leadDescription']],
           vats:     merged.vats     || [['vatID', 'vatDesc', 'vatToPayAccID', 'vatToClaimAccID']],
           obs:      merged.obs      || [['nr', 'accID', 'accDesc', 'amnt', 'amntTp', 'bedrag']],
+          obsInFile: !!(merged.obs && merged.obs.length > 1),
           custSups: merged.custSups || [['custSupID', 'custSupName', 'custSupTp', 'commerceNr', 'taxRegIdent', 'contact', 'telephone', 'eMail']],
           lineH:    LINE_H,
           rows:     merged.rows,
@@ -998,7 +1002,11 @@
 
           // Stat cards
           setStatCard('stat-rekeningen', fmt(msg.accs.length - 1));
-          setStatCard('stat-beginsaldi', fmt(msg.obs.length  - 1));
+          if (!msg.obsInFile) {
+            setStatCard('stat-beginsaldi', '—', 'Niet in auditfile');
+          } else {
+            setStatCard('stat-beginsaldi', fmt(msg.obs.length - 1));
+          }
           var mutLbl = nLines > MAX_ROWS * 4 ? 'regels (gebruik CSV!)' : nLines > MAX_ROWS ? 'regels (gesplitst)' : 'Mutatieregels';
           setStatCard('stat-mutaties', fmt(nLines), mutLbl);
           setStatCard('stat-btw', fmt(msg.vats.length - 1));
@@ -1082,6 +1090,7 @@
       });
       selectedAccIDs = [];
       document.getElementById('acc-chips').innerHTML = '';
+      document.getElementById('obs-warning').style.display = data.obsInFile ? 'none' : 'block';
       document.getElementById('analyse-wrap').style.display = 'block';
       updateAnalyse();
     }
