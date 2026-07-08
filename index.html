@@ -200,7 +200,7 @@
           <div class="lft-block-title">Samenvatting</div>
           <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
             <button id="kb-dl" class="lft-btn lft-btn-sec">&#128202;&nbsp; Download kolommenbalans</button>
-            <span class="lft-hint">Rekeningen + beginsaldi + saldo's — altijd klein en snel</span>
+            <span id="kb-hint" class="lft-hint">Rekeningen + beginsaldi + saldo's — altijd klein en snel</span>
           </div>
         </div>
 
@@ -1006,9 +1006,11 @@
           if (!msg.obsInFile) {
             setStatCard('stat-beginsaldi', '—', 'Niet in auditfile');
             document.getElementById('obs-warning').style.display = 'block';
+            document.getElementById('kb-hint').textContent = 'Rekeningen + saldo\'s — beginsaldi niet in auditfile';
           } else {
             setStatCard('stat-beginsaldi', fmt(msg.obs.length - 1));
             document.getElementById('obs-warning').style.display = 'none';
+            document.getElementById('kb-hint').textContent = 'Rekeningen + beginsaldi + saldo\'s — altijd klein en snel';
           }
           var mutLbl = nLines > MAX_ROWS * 4 ? 'regels (gebruik CSV!)' : nLines > MAX_ROWS ? 'regels (gesplitst)' : 'Mutatieregels';
           setStatCard('stat-mutaties', fmt(nLines), mutLbl);
