@@ -755,6 +755,14 @@
 
     var EXCEL_MUT_CAP = 500000; // SheetJS-grens: ~9M cellen per sheet (500K × 18 kol)
 
+    function sortByAcc(rows, col) {
+      return rows.slice().sort(function(a, b) {
+        var av = String(a[col] || ''), bv = String(b[col] || '');
+        var an = parseFloat(av), bn = parseFloat(bv);
+        return (!isNaN(an) && !isNaN(bn)) ? an - bn : av.localeCompare(bv);
+      });
+    }
+
     function buildExcel(data, baseName) {
       var filteredRows = filterRows(data.rows);
       var isTruncated  = filteredRows.length > EXCEL_MUT_CAP;
@@ -772,12 +780,16 @@
           var wsBedrijf = XLSX.utils.aoa_to_sheet(data.bedrijf);
           XLSX.utils.book_append_sheet(wb, wsBedrijf, 'Bedrijfsgegevens');
 
-          addSheet(wb, 'Grootboekrekeningen', data.accs[0],     data.accs.slice(1));
-          addSheet(wb, 'BTW-codes',           data.vats[0],     data.vats.slice(1));
-          addSheet(wb, 'Beginsaldi',          data.obs[0],      data.obs.slice(1));
+          addSheet(wb, 'Grootboekrekeningen', data.accs[0],     sortByAcc(data.accs.slice(1), 0));
+          addSheet(wb, 'BTW-codes',           data.vats[0],     sortByAcc(data.vats.slice(1), 0));
+          addSheet(wb, 'Beginsaldi',          data.obs[0],      sortByAcc(data.obs.slice(1), 1));
           if (data.custSups && data.custSups.length > 1)
-            addSheet(wb, 'Deb_Cred',          data.custSups[0], data.custSups.slice(1));
-          addSheet(wb, 'Kolommenbalans',      kbH,              buildKolommenbalans(data.accs, data.obs, filteredRows));
+            addSheet(wb, 'Deb_Cred',          data.custSups[0], sortByAcc(data.custSups.slice(1), 0));
+          var kbRows   = buildKolommenbalans(data.accs, data.obs, filteredRows);
+          var kbTotaal = kbRows[kbRows.length - 1]; // TOTAAL-rij blijft onderaan
+          var kbSorted = sortByAcc(kbRows.slice(0, -1), 0);
+          kbSorted.push(kbTotaal);
+          addSheet(wb, 'Kolommenbalans',      kbH,              kbSorted);
           addSheet(wb, 'Mutaties',            data.lineH,       mutRows);
 
           // Aansluitcheck always over ALL rows (period filter doesn't hide errors)
