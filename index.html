@@ -81,18 +81,37 @@
     #csvBtn:hover       { background: #054338; box-shadow: 0 2px 10px rgba(6,95,70,.25); }
     #csvBtn:disabled    { background: #94a3b8; cursor: default; box-shadow: none; }
     #export-hint { display: none; margin-top: 10px; font-size: 0.81rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 7px; padding: 8px 12px; }
-    #analyse-wrap { display: none; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 16px; }
-    .analyse-selrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 10px; }
-    .analyse-field { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 160px; }
-    .analyse-field label { font-size: 0.72rem; color: #64748b; }
-    .analyse-field select, .analyse-field input { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; color: #334155; background: #f8fafc; width: 100%; box-sizing: border-box; }
-    #analyse-info { font-size: 0.82rem; color: #475569; min-height: 1.3em; margin-bottom: 8px; }
+    #analyse-wrap { display: none; margin-top: 22px; }
+    .lft-header { display: flex; align-items: flex-start; gap: 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; }
+    .lft-badge { background: #f59e0b; color: #fff; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
+    .lft-title { font-size: 0.88rem; font-weight: 700; color: #92400e; }
+    .lft-sub   { font-size: 0.75rem; color: #b45309; margin-top: 2px; }
+    .lft-block { border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+    .lft-block-title { font-size: 0.70rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px; }
+    .lft-btn { padding: 7px 16px; border-radius: 7px; font-size: 0.83rem; font-weight: 600; cursor: pointer; transition: background .15s, box-shadow .15s; border: none; }
+    .lft-btn-pri { background: #1E2D4E; color: #fff; }
+    .lft-btn-pri:hover { background: #162240; box-shadow: 0 2px 8px rgba(30,45,78,.2); }
+    .lft-btn-sec { background: #f1f5f9; color: #1E2D4E; border: 1px solid #cbd5e1; }
+    .lft-btn-sec:hover { background: #e2e8f0; }
+    .lft-btn:disabled, button:disabled { opacity: .5; cursor: default; pointer-events: none; }
+    .lft-hint { font-size: 0.74rem; color: #94a3b8; }
+    .acc-picker-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .acc-picker-sel { flex: 1; min-width: 200px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; color: #334155; background: #f8fafc; }
+    .lft-btn-sm { padding: 6px 13px; background: #1E2D4E; color: #fff; border: none; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .lft-btn-sm:hover { background: #162240; }
+    .lft-btn-sm.ghost { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+    .lft-btn-sm.ghost:hover { background: #e2e8f0; }
+    #acc-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .acc-chip { display: inline-flex; align-items: center; gap: 5px; background: #1E2D4E; color: #fff; border-radius: 20px; padding: 3px 8px 3px 12px; font-size: 0.78rem; font-weight: 500; }
+    .acc-chip button { background: none; border: none; color: rgba(255,255,255,.65); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0; }
+    .acc-chip button:hover { color: #fff; }
+    .lft-txt { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; color: #334155; background: #f8fafc; width: 100%; box-sizing: border-box; }
+    #analyse-info { font-size: 0.82rem; color: #475569; min-height: 1.2em; margin-top: 8px; }
     #analyse-info strong { color: #1E2D4E; }
-    #analyse-dl { padding: 7px 18px; border: none; border-radius: 7px; background: #1E2D4E; color: #fff; font-size: 0.84rem; font-weight: 600; cursor: pointer; margin-top: 10px; transition: background .15s; }
-    #analyse-dl:hover { background: #162240; }
-    #analyse-dl:disabled { background: #94a3b8; cursor: default; }
+    .dl-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    #dl-hint { font-size: 0.74rem; margin-top: 5px; }
     .atbl { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 8px; }
-    .atbl th { background: #f1f5f9; color: #64748b; font-size: 0.68rem; text-transform: uppercase; letter-spacing: .04em; padding: 5px 8px; text-align: left; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+    .atbl th { background: #f1f5f9; color: #64748b; font-size: 0.67rem; text-transform: uppercase; letter-spacing: .04em; padding: 5px 8px; text-align: left; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
     .atbl td { padding: 4px 8px; border-bottom: 1px solid #f8fafc; color: #334155; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .atbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
     .atbl tr:last-child td { border-bottom: none; }
@@ -163,20 +182,53 @@
       <div id="export-hint"></div>
 
       <div id="analyse-wrap">
-        <div class="periode-header" style="margin-bottom:10px;">Analyseer mutaties</div>
-        <div class="analyse-selrow">
-          <div class="analyse-field" style="max-width:280px;">
-            <label for="analyse-rek">Rekening</label>
-            <select id="analyse-rek"><option value="">Alle rekeningen</option></select>
-          </div>
-          <div class="analyse-field">
-            <label for="analyse-txt">Zoek in omschrijving / relatie</label>
-            <input type="text" id="analyse-txt" placeholder="bijv. factuur, huur, loon…">
+
+        <div class="lft-header">
+          <div class="lft-badge">!</div>
+          <div>
+            <div class="lft-title">Groot bestand — gebruik de opties hieronder</div>
+            <div class="lft-sub">Dit bestand past niet volledig in één Excel. Exporteer een gerichte selectie.</div>
           </div>
         </div>
-        <div id="analyse-info"></div>
-        <div id="analyse-preview"></div>
-        <button id="analyse-dl">&#8659;&nbsp; Download selectie als Excel</button>
+
+        <!-- Samenvatting -->
+        <div class="lft-block">
+          <div class="lft-block-title">Samenvatting</div>
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+            <button id="kb-dl" class="lft-btn lft-btn-sec">&#128202;&nbsp; Download kolommenbalans</button>
+            <span class="lft-hint">Rekeningen + beginsaldi + saldo's — altijd klein en snel</span>
+          </div>
+        </div>
+
+        <!-- Rekening selectie -->
+        <div class="lft-block">
+          <div class="lft-block-title">Exporteer per rekening</div>
+
+          <div class="acc-picker-row">
+            <select id="acc-picker" class="acc-picker-sel">
+              <option value="">— Kies een rekening —</option>
+            </select>
+            <button id="acc-add" class="lft-btn-sm">+ Voeg toe</button>
+            <button id="acc-clear" class="lft-btn-sm ghost">Wis alles</button>
+          </div>
+
+          <div id="acc-chips"></div>
+
+          <div style="margin-top:10px;">
+            <div style="font-size:0.72rem;color:#64748b;margin-bottom:3px;">Zoek in omschrijving / relatie <span style="font-weight:400">(optioneel)</span></div>
+            <input type="text" id="analyse-txt" class="lft-txt" placeholder="bijv. factuur, huur, loon…">
+          </div>
+
+          <div id="analyse-info"></div>
+          <div id="analyse-preview" style="overflow-x:auto;"></div>
+
+          <div class="dl-row">
+            <button id="analyse-dl"       class="lft-btn lft-btn-pri">&#8659;&nbsp; Download als 1 Excel</button>
+            <button id="analyse-dl-split" class="lft-btn lft-btn-sec">&#8659;&nbsp; Download per rekening (losse bestanden)</button>
+          </div>
+          <div id="dl-hint" class="lft-hint"></div>
+        </div>
+
       </div>
 
       <footer style="margin-top: 32px; padding-top: 12px; border-top: 0.5px solid var(--bt-border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
@@ -960,7 +1012,7 @@
           // Period filter + live count
           renderPeriodFilter(msg.rows);
           updatePeriodCount();
-          populateAnalyse(msg);
+          if (nLines > EXCEL_MUT_CAP) populateAnalyse(msg);
 
           exportBtn.style.display = 'inline-block';
           csvBtn.style.display    = 'inline-block';
@@ -989,45 +1041,83 @@
       worker.postMessage(files);
     }
 
-    // ── Analyse panel ────────────────────────────────────────────────────────
+    // ── Analyse panel (alleen voor grote bestanden) ───────────────────────────
+    var selectedAccIDs = [];
+    var accDescCache   = {};
+
     function htmlEsc(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
     function populateAnalyse(data) {
-      // Bouw dropdown van rekeningen die daadwerkelijk in de mutaties voorkomen
-      var accSet = {}, accDesc = {};
+      accDescCache = {};
       data.rows.forEach(function(r) {
-        var id = r[8];
-        if (id && !accSet[id]) { accSet[id] = true; accDesc[id] = r[9] || ''; }
+        if (r[8] && !accDescCache.hasOwnProperty(r[8])) accDescCache[r[8]] = r[9] || '';
       });
-      var ids = Object.keys(accSet).sort(function(a, b) {
+      var ids = Object.keys(accDescCache).sort(function(a, b) {
         var an = parseFloat(a), bn = parseFloat(b);
         return (!isNaN(an) && !isNaN(bn)) ? an - bn : a.localeCompare(b);
       });
-      var sel = document.getElementById('analyse-rek');
-      sel.innerHTML = '<option value="">Alle rekeningen (' + fmt(ids.length) + ')</option>';
+      var sel = document.getElementById('acc-picker');
+      sel.innerHTML = '<option value="">— Kies een rekening —</option>';
       ids.forEach(function(id) {
         var opt = document.createElement('option');
         opt.value = id;
-        opt.textContent = id + (accDesc[id] ? '  —  ' + accDesc[id] : '');
+        opt.textContent = id + (accDescCache[id] ? '  —  ' + accDescCache[id] : '');
         sel.appendChild(opt);
       });
+      selectedAccIDs = [];
+      document.getElementById('acc-chips').innerHTML = '';
       document.getElementById('analyse-wrap').style.display = 'block';
       updateAnalyse();
     }
 
+    function renderAccChips() {
+      var html = '';
+      selectedAccIDs.forEach(function(id) {
+        var desc = accDescCache[id] ? '  ' + accDescCache[id] : '';
+        html += '<span class="acc-chip">' + htmlEsc(id + desc)
+          + ' <button data-id="' + htmlEsc(id) + '" title="Verwijder">&times;</button></span>';
+      });
+      document.getElementById('acc-chips').innerHTML = html;
+      updateAnalyse();
+    }
+
+    document.getElementById('acc-chips').addEventListener('click', function(e) {
+      if (e.target.tagName === 'BUTTON' && e.target.dataset.id) {
+        selectedAccIDs = selectedAccIDs.filter(function(x) { return x !== e.target.dataset.id; });
+        renderAccChips();
+      }
+    });
+
+    document.getElementById('acc-add').addEventListener('click', function() {
+      var sel = document.getElementById('acc-picker');
+      var val = sel.value;
+      if (!val || selectedAccIDs.indexOf(val) !== -1) return;
+      selectedAccIDs.push(val);
+      sel.value = '';
+      renderAccChips();
+    });
+
+    document.getElementById('acc-clear').addEventListener('click', function() {
+      selectedAccIDs = [];
+      document.getElementById('acc-chips').innerHTML = '';
+      updateAnalyse();
+    });
+
     function getAnalyseRows() {
       if (!parsed) return [];
-      var rek = document.getElementById('analyse-rek').value;
       var txt = (document.getElementById('analyse-txt').value || '').trim().toLowerCase();
       var cbs = document.querySelectorAll('#periode-checks input');
       var selPer = {}, allPer = true;
       cbs.forEach(function(cb) { selPer[cb.value] = cb.checked; if (!cb.checked) allPer = false; });
+      var hasAcc = selectedAccIDs.length > 0;
+      var accSet = {};
+      selectedAccIDs.forEach(function(id) { accSet[id] = true; });
 
       return parsed.rows.filter(function(r) {
         if (!allPer && !selPer[String(r[IDX_PERIOD])]) return false;
-        if (rek && r[8] !== rek) return false;
+        if (hasAcc && !accSet[r[8]]) return false;
         if (txt) {
           var hay = (String(r[4]||'') + ' ' + String(r[12]||'') + ' ' + String(r[20]||'')).toLowerCase();
           if (hay.indexOf(txt) === -1) return false;
@@ -1036,27 +1126,41 @@
       });
     }
 
-    var analyseTxt = document.getElementById('analyse-txt');
     var analyseDebounce = null;
     function updateAnalyse() {
+      if (!parsed) return;
       var rows = getAnalyseRows();
-      var n    = rows.length;
+      var n = rows.length;
       var totD = 0, totC = 0;
       rows.forEach(function(r) { var b = r[IDX_BEDRAG]; if (b > 0) totD += b; else totC += b; });
       totD = Math.round(totD * 100) / 100;
       totC = Math.round(Math.abs(totC) * 100) / 100;
-
       var balanced = Math.abs(totD - totC) < 0.01;
+
       document.getElementById('analyse-info').innerHTML = n === 0
         ? '<span style="color:#94a3b8">Geen regels gevonden.</span>'
-        : '<strong>' + fmt(n) + '</strong> regels &nbsp;·&nbsp; D: <strong>€ ' + fmtEur(totD) + '</strong> &nbsp;·&nbsp; C: <strong>€ ' + fmtEur(totC) + '</strong>'
-          + (balanced ? ' &nbsp;<span style="color:#059669">✓ sluit</span>' : ' &nbsp;<span style="color:#dc2626">⚠ sluit niet</span>');
+        : '<strong>' + fmt(n) + '</strong> regels &nbsp;·&nbsp; D: <strong>€ ' + fmtEur(totD) + '</strong>'
+          + ' &nbsp;·&nbsp; C: <strong>€ ' + fmtEur(totC) + '</strong>'
+          + (balanced ? ' &nbsp;<span style="color:#059669">✓ sluit</span>'
+                      : ' &nbsp;<span style="color:#dc2626">⚠ sluit niet</span>');
 
-      // Preview: eerste 10 rijen
+      var dlHint = document.getElementById('dl-hint');
+      if (n > EXCEL_MUT_CAP) {
+        dlHint.innerHTML = '&#9888; Selectie heeft <strong>' + fmt(n) + '</strong> regels — voeg minder rekeningen toe of verfijn de zoekterm.';
+        dlHint.style.color = '#dc2626';
+      } else if (!selectedAccIDs.length) {
+        dlHint.textContent = 'Tip: selecteer één of meer rekeningen voor een download per rekening.';
+        dlHint.style.color = '#94a3b8';
+      } else {
+        dlHint.textContent = '';
+      }
+
       var prev = rows.slice(0, 10);
-      if (!prev.length) { document.getElementById('analyse-preview').innerHTML = ''; return; }
+      var prevEl = document.getElementById('analyse-preview');
+      if (!prev.length) { prevEl.innerHTML = ''; return; }
       var h = '<table class="atbl"><thead><tr>'
-        + '<th>Datum</th><th>Per.</th><th>Rek.</th><th>Rekeningomschrijving</th><th>Boekingsomschrijving</th><th>Relatie</th><th>Bedrag</th>'
+        + '<th>Datum</th><th>Per.</th><th>Rek.</th><th>Omschrijving rekening</th>'
+        + '<th>Boekingsomschrijving</th><th>Relatie</th><th style="text-align:right">Bedrag</th>'
         + '</tr></thead><tbody>';
       prev.forEach(function(r) {
         var b = r[IDX_BEDRAG];
@@ -1072,39 +1176,109 @@
       });
       h += '</tbody></table>';
       if (n > 10) h += '<div class="atbl-more">Eerste 10 van ' + fmt(n) + ' regels — download voor volledig overzicht.</div>';
-      document.getElementById('analyse-preview').innerHTML = h;
+      prevEl.innerHTML = h;
     }
 
-    document.getElementById('analyse-rek').addEventListener('change', updateAnalyse);
-    analyseTxt.addEventListener('input', function() {
+    document.getElementById('analyse-txt').addEventListener('input', function() {
       clearTimeout(analyseDebounce);
       analyseDebounce = setTimeout(updateAnalyse, 250);
     });
     document.getElementById('periode-checks').addEventListener('change', updateAnalyse);
 
+    // Kolommenbalans download
+    document.getElementById('kb-dl').addEventListener('click', function() {
+      if (!parsed) return;
+      setStatus('Kolommenbalans genereren…');
+      setTimeout(function() {
+        try {
+          var wb = XLSX.utils.book_new();
+          var fr = filterRows(parsed.rows);
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(parsed.bedrijf), 'Bedrijfsgegevens');
+          addSheet(wb, 'Grootboekrekeningen', parsed.accs[0], sortByAcc(parsed.accs.slice(1), 0));
+          addSheet(wb, 'BTW-codes',           parsed.vats[0], sortByAcc(parsed.vats.slice(1), 0));
+          addSheet(wb, 'Beginsaldi',          parsed.obs[0],  sortByAcc(parsed.obs.slice(1), 1));
+          if (parsed.custSups && parsed.custSups.length > 1)
+            addSheet(wb, 'Deb_Cred', parsed.custSups[0], sortByAcc(parsed.custSups.slice(1), 0));
+          var kbR = buildKolommenbalans(parsed.accs, parsed.obs, fr);
+          var kbT = kbR[kbR.length - 1];
+          var kbS = sortByAcc(kbR.slice(0, -1), 0); kbS.push(kbT);
+          addSheet(wb, 'Kolommenbalans', kbH, kbS);
+          XLSX.writeFile(wb, fileName + '_kolommenbalans.xlsx');
+          setStatus('Kolommenbalans gedownload.', 'ok');
+        } catch (ex) { setStatus('Excel fout: ' + ex.message, 'err'); }
+      }, 50);
+    });
+
+    // Download als 1 Excel
     document.getElementById('analyse-dl').addEventListener('click', function() {
       if (!parsed) return;
       var rows = getAnalyseRows();
       if (!rows.length) { setStatus('Geen regels voor deze selectie.', 'err'); return; }
       if (rows.length > EXCEL_MUT_CAP) {
-        setStatus('Selectie heeft ' + fmt(rows.length) + ' regels — te veel voor Excel. Verfijn de filter of gebruik hoofdknop CSV.', 'err');
-        return;
+        setStatus('Selectie heeft ' + fmt(rows.length) + ' regels — voeg minder rekeningen toe.', 'err'); return;
       }
-      var rek    = document.getElementById('analyse-rek').value;
-      var suffix = rek ? '_rek' + rek : '_selectie';
-      setStatus('Excel genereren voor selectie…');
+      var suffix = selectedAccIDs.length === 1 ? '_rek' + selectedAccIDs[0] : '_selectie';
+      setStatus('Excel genereren…');
       document.getElementById('analyse-dl').disabled = true;
       setTimeout(function() {
         try {
           var wb = XLSX.utils.book_new();
           addSheet(wb, 'Mutaties', parsed.lineH, rows);
           XLSX.writeFile(wb, fileName + suffix + '.xlsx');
-          setStatus('Klaar — ' + fmt(rows.length) + ' regels geëxporteerd.', 'ok');
-        } catch (ex) {
-          setStatus('Excel fout: ' + ex.message, 'err');
-        }
+          setStatus('Klaar — ' + fmt(rows.length) + ' regels.', 'ok');
+        } catch (ex) { setStatus('Excel fout: ' + ex.message, 'err'); }
         document.getElementById('analyse-dl').disabled = false;
       }, 50);
+    });
+
+    // Download per rekening — losse Excel-bestanden
+    document.getElementById('analyse-dl-split').addEventListener('click', function() {
+      if (!parsed) return;
+      if (!selectedAccIDs.length) {
+        setStatus('Selecteer eerst één of meer rekeningen.', 'err'); return;
+      }
+      // Valideer alle rekeningen eerst
+      var cbs = document.querySelectorAll('#periode-checks input');
+      var selPer = {}, allPer = true;
+      cbs.forEach(function(cb) { selPer[cb.value] = cb.checked; if (!cb.checked) allPer = false; });
+      var tooLarge = [];
+      selectedAccIDs.forEach(function(id) {
+        var cnt = parsed.rows.filter(function(r) {
+          if (!allPer && !selPer[String(r[IDX_PERIOD])]) return false;
+          return r[8] === id;
+        }).length;
+        if (cnt > EXCEL_MUT_CAP) tooLarge.push(id + ' (' + fmt(cnt) + ' regels)');
+      });
+      if (tooLarge.length) {
+        setStatus('Te groot voor Excel: ' + tooLarge.join(', '), 'err'); return;
+      }
+      var btn = document.getElementById('analyse-dl-split');
+      btn.disabled = true;
+      var idx = 0;
+      function next() {
+        if (idx >= selectedAccIDs.length) {
+          setStatus('Klaar — ' + selectedAccIDs.length + ' Excel-bestand(en) gedownload.', 'ok');
+          btn.disabled = false; return;
+        }
+        var id = selectedAccIDs[idx++];
+        setStatus('Downloaden ' + idx + '/' + selectedAccIDs.length + ': rekening ' + id + '…');
+        var accRows = parsed.rows.filter(function(r) {
+          if (!allPer && !selPer[String(r[IDX_PERIOD])]) return false;
+          return r[8] === id;
+        });
+        setTimeout(function() {
+          try {
+            var wb = XLSX.utils.book_new();
+            addSheet(wb, 'Mutaties', parsed.lineH, accRows);
+            XLSX.writeFile(wb, fileName + '_rek' + id + '.xlsx');
+            setTimeout(next, 600);
+          } catch (ex) {
+            setStatus('Fout bij rekening ' + id + ': ' + ex.message, 'err');
+            btn.disabled = false;
+          }
+        }, 50);
+      }
+      next();
     });
 
     exportBtn.addEventListener('click', function() {
