@@ -651,7 +651,9 @@
           document.body.appendChild(a); a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          setStatus('Klaar.', 'ok');
+          setStatus(rows.length > 1000000
+            ? 'CSV gedownload (' + fmt(rows.length) + ' regels). Tip: Excel ondersteunt max. ~1 miljoen rijen — open met Power Query of Power BI voor het volledige bestand.'
+            : 'Klaar.', 'ok');
         } catch (ex) {
           setStatus('CSV fout: ' + ex.message, 'err');
         }
@@ -739,15 +741,21 @@
       return out;
     }
 
+    var EXCEL_MUT_CAP = 500000; // SheetJS-grens: ~9M cellen per sheet (500K × 18 kol)
+
     function buildExcel(data, baseName) {
-      setStatus('Excel genereren…');
+      var filteredRows = filterRows(data.rows);
+      var isTruncated  = filteredRows.length > EXCEL_MUT_CAP;
+      var mutRows      = isTruncated ? filteredRows.slice(0, EXCEL_MUT_CAP) : filteredRows;
+
+      setStatus(isTruncated
+        ? 'Excel genereren (eerste ' + fmt(EXCEL_MUT_CAP) + ' van ' + fmt(filteredRows.length) + ' regels)…'
+        : 'Excel genereren…');
       exportBtn.disabled = true;
 
-      // Defer one tick so the status message renders before we block
       setTimeout(function() {
         try {
-          var wb           = XLSX.utils.book_new();
-          var filteredRows = filterRows(data.rows);
+          var wb = XLSX.utils.book_new();
 
           var wsBedrijf = XLSX.utils.aoa_to_sheet(data.bedrijf);
           XLSX.utils.book_append_sheet(wb, wsBedrijf, 'Bedrijfsgegevens');
@@ -758,25 +766,26 @@
           if (data.custSups && data.custSups.length > 1)
             addSheet(wb, 'Deb_Cred',          data.custSups[0], data.custSups.slice(1));
           addSheet(wb, 'Kolommenbalans',      kbH,              buildKolommenbalans(data.accs, data.obs, filteredRows));
-          addSheet(wb, 'Mutaties',            data.lineH,       filteredRows);
+          addSheet(wb, 'Mutaties',            data.lineH,       mutRows);
 
           // Aansluitcheck always over ALL rows (period filter doesn't hide errors)
           var ac = computeAansluitcheck(data.rows);
           if (ac.unbalanced.length > 0) {
-            var fileDiff = Math.round(Math.abs(ac.totalDeb - ac.totalCrd) * 100) / 100;
             var acRows = [];
-            // Samenvatting bovenaan
             acRows.push(['Bestandsniveau', '', '', '', '', '', ac.totalDeb, ac.totalCrd, Math.round((ac.totalDeb - ac.totalCrd) * 100) / 100]);
             acRows.push(['', '', '', '', '', '', '', '', '']);
-            acRows.push(['--- Individuele transacties niet in balans (' + ac.unbalanced.length + ' van ' + ac.total + ') ---', '', '', '', '', '', '', '', '']);
-            acRows = acRows.concat(ac.unbalanced);
+            var ubMax = Math.min(ac.unbalanced.length, 50000);
+            acRows.push(['--- ' + ac.unbalanced.length + ' transacties niet in balans' + (ubMax < ac.unbalanced.length ? ' (eerste ' + fmt(ubMax) + ' getoond)' : '') + ' ---', '', '', '', '', '', '', '', '']);
+            acRows = acRows.concat(ac.unbalanced.slice(0, ubMax));
             addSheet(wb, 'Aansluitcheck',
               ['niveau','jrn_desc','jrnTp','tx_nr','tx_desc','tx_trDt','debet','credit','verschil'],
               acRows);
           }
 
           XLSX.writeFile(wb, baseName + '_raw.xlsx');
-          setStatus('Klaar.', 'ok');
+          setStatus(isTruncated
+            ? 'Excel gedownload — mutaties beperkt tot eerste ' + fmt(EXCEL_MUT_CAP) + ' van ' + fmt(filteredRows.length) + ' regels. Gebruik CSV voor de volledige export.'
+            : 'Klaar.', 'ok');
         } catch (ex) {
           setStatus('Excel fout: ' + ex.message, 'err');
         }
