@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
@@ -661,10 +661,18 @@
 
           // Aansluitcheck always over ALL rows (period filter doesn't hide errors)
           var ac = computeAansluitcheck(data.rows);
-          if (ac.unbalanced.length > 0)
+          if (ac.unbalanced.length > 0) {
+            var fileDiff = Math.round(Math.abs(ac.totalDeb - ac.totalCrd) * 100) / 100;
+            var acRows = [];
+            // Samenvatting bovenaan
+            acRows.push(['Bestandsniveau', '', '', '', '', '', ac.totalDeb, ac.totalCrd, Math.round((ac.totalDeb - ac.totalCrd) * 100) / 100]);
+            acRows.push(['', '', '', '', '', '', '', '', '']);
+            acRows.push(['--- Individuele transacties niet in balans (' + ac.unbalanced.length + ' van ' + ac.total + ') ---', '', '', '', '', '', '', '', '']);
+            acRows = acRows.concat(ac.unbalanced);
             addSheet(wb, 'Aansluitcheck',
-              ['jrnID','jrn_desc','jrnTp','tx_nr','tx_desc','tx_trDt','debet','credit','verschil'],
-              ac.unbalanced);
+              ['niveau','jrn_desc','jrnTp','tx_nr','tx_desc','tx_trDt','debet','credit','verschil'],
+              acRows);
+          }
 
           XLSX.writeFile(wb, baseName + '_raw.xlsx');
           setStatus('Klaar.', 'ok');
@@ -763,10 +771,10 @@
           var ac = computeAansluitcheck(msg.rows);
           var diff = Math.round(Math.abs(ac.totalDeb - ac.totalCrd) * 100) / 100;
           if (diff < 0.01) {
-            var txNote = ac.unbalanced.length > 0
-              ? '  (' + fmt(ac.unbalanced.length) + ' van ' + fmt(ac.total) + ' transacties individueel niet sluitend — zie Aansluitcheck-tabblad)'
-              : '';
-            aansluitEl.textContent = '✓  Totaal sluit: debet = credit = € ' + fmtEur(ac.totalDeb) + txNote;
+            aansluitEl.textContent = '✓  Totaal sluit: debet = credit = € ' + fmtEur(ac.totalDeb);
+
+
+
             aansluitEl.className = 'ok';
           } else {
             aansluitEl.textContent = '⚠  Totaal sluit NIET: debet € ' + fmtEur(ac.totalDeb) +
