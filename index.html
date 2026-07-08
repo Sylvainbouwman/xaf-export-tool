@@ -95,8 +95,9 @@
     .lft-btn-sec:hover { background: #e2e8f0; }
     .lft-btn:disabled, button:disabled { opacity: .5; cursor: default; pointer-events: none; }
     .lft-hint { font-size: 0.74rem; color: #94a3b8; }
-    .acc-picker-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-    .acc-picker-sel { flex: 1; min-width: 200px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; color: #334155; background: #f8fafc; }
+    .acc-picker-row { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+    .acc-picker-sel { flex: 1; min-width: 200px; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; color: #334155; background: #f8fafc; }
+    .acc-picker-sel option:checked { background: #E8EEF7; color: #1E2D4E; }
     .lft-btn-sm { padding: 6px 13px; background: #1E2D4E; color: #fff; border: none; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
     .lft-btn-sm:hover { background: #162240; }
     .lft-btn-sm.ghost { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
@@ -204,12 +205,13 @@
         <div class="lft-block">
           <div class="lft-block-title">Exporteer per rekening</div>
 
+          <div style="font-size:0.72rem;color:#64748b;margin-bottom:4px;">Kies rekeningen <span style="font-weight:400">(Ctrl+klik = meerdere tegelijk)</span></div>
           <div class="acc-picker-row">
-            <select id="acc-picker" class="acc-picker-sel">
-              <option value="">— Kies een rekening —</option>
-            </select>
-            <button id="acc-add" class="lft-btn-sm">+ Voeg toe</button>
-            <button id="acc-clear" class="lft-btn-sm ghost">Wis alles</button>
+            <select id="acc-picker" class="acc-picker-sel" multiple size="5"></select>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <button id="acc-add" class="lft-btn-sm">+ Voeg toe</button>
+              <button id="acc-clear" class="lft-btn-sm ghost">Wis alles</button>
+            </div>
           </div>
 
           <div id="acc-chips"></div>
@@ -569,6 +571,14 @@
               parseJournal(buffer.slice(jS2, jE2), merged.rows);
               pos2 = jE2;
               jDone++;
+            }
+            // Fallback: sommige bestanden plaatsen openingBalance ná transactions
+            if (merged.obs && merged.obs.length <= 1) {
+              getAll(buffer, 'obLine').forEach(function(el) {
+                var t = childTextsStr(el);
+                var desc = t.accDesc || accMap[t.accID] || '';
+                merged.obs.push([t.nr || '', t.accID || '', desc, parseFloat(t.amnt) || 0, t.amntTp || '', signed(t.amnt, t.amntTp)]);
+              });
             }
           } else {
             // Geen <transactions> gevonden — probeer hele buffer als header te parsen
@@ -948,7 +958,7 @@
       document.getElementById('periode-count').textContent       = '';
       document.getElementById('export-hint').style.display      = 'none';
       document.getElementById('analyse-wrap').style.display     = 'none';
-      document.getElementById('acc-picker').innerHTML           = '<option value="">— Kies een rekening —</option>';
+      document.getElementById('acc-picker').innerHTML            = '';
       document.getElementById('acc-chips').innerHTML            = '';
       selectedAccIDs = [];
       accDescCache   = {};
@@ -1063,7 +1073,7 @@
         return (!isNaN(an) && !isNaN(bn)) ? an - bn : a.localeCompare(b);
       });
       var sel = document.getElementById('acc-picker');
-      sel.innerHTML = '<option value="">— Kies een rekening —</option>';
+      sel.innerHTML = '';
       ids.forEach(function(id) {
         var opt = document.createElement('option');
         opt.value = id;
@@ -1096,11 +1106,17 @@
 
     document.getElementById('acc-add').addEventListener('click', function() {
       var sel = document.getElementById('acc-picker');
-      var val = sel.value;
-      if (!val || selectedAccIDs.indexOf(val) !== -1) return;
-      selectedAccIDs.push(val);
-      sel.value = '';
-      renderAccChips();
+      var added = false;
+      Array.from(sel.selectedOptions).forEach(function(opt) {
+        if (opt.value && selectedAccIDs.indexOf(opt.value) === -1) {
+          selectedAccIDs.push(opt.value);
+          added = true;
+        }
+      });
+      if (added) {
+        Array.from(sel.options).forEach(function(o) { o.selected = false; });
+        renderAccChips();
+      }
     });
 
     document.getElementById('acc-clear').addEventListener('click', function() {
