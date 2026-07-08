@@ -1314,6 +1314,9 @@
       setTimeout(function() {
         try {
           var wb = XLSX.utils.book_new();
+          var dlBedrijf = parsed.obsInFile ? parsed.bedrijf
+            : parsed.bedrijf.concat([['Beginsaldi', 'Niet opgenomen in auditfile']]);
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dlBedrijf), 'Bedrijfsgegevens');
           addSheet(wb, 'Mutaties', parsed.lineH, rows);
           XLSX.writeFile(wb, fileName + suffix + '.xlsx');
           setStatus('Klaar — ' + fmt(rows.length) + ' regels.', 'ok');
@@ -1360,6 +1363,9 @@
         setTimeout(function() {
           try {
             var wb = XLSX.utils.book_new();
+            var spBedrijf = parsed.obsInFile ? parsed.bedrijf
+              : parsed.bedrijf.concat([['Beginsaldi', 'Niet opgenomen in auditfile']]);
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(spBedrijf), 'Bedrijfsgegevens');
             addSheet(wb, 'Mutaties', parsed.lineH, accRows);
             XLSX.writeFile(wb, fileName + '_rek' + id + '.xlsx');
             setTimeout(next, 600);
