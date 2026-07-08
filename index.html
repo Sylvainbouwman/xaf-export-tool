@@ -795,9 +795,9 @@
     }
 
     var kbH = ['Rekening', 'Omschrijving', 'Type',
-                'Beg.saldo D', 'Beg.saldo C',
-                'Mutaties D',  'Mutaties C',
-                'Eindsaldo D', 'Eindsaldo C'];
+                'Beg.saldo Debet', 'Beg.saldo Credit',
+                'Mutaties Debet',  'Mutaties Credit',
+                'Eindsaldo Debet', 'Eindsaldo Credit', 'Saldo'];
 
     function buildKolommenbalans(accs, obs, rows) {
       // Beginsaldi per rekening (gesigneerd: D=positief, C=negatief)
@@ -828,13 +828,14 @@
         var eD  = net > 0 ? net : 0;
         var eC  = net < 0 ? -net : 0;
 
-        out.push([id, desc, tp, bD || 0, bC || 0, mD || 0, mC || 0, eD || 0, eC || 0]);
+        var saldo = Math.round((eD - eC) * 100) / 100;
+        out.push([id, desc, tp, bD || 0, bC || 0, mD || 0, mC || 0, eD || 0, eC || 0, saldo]);
         totBD += bD; totBC += bC; totMD += mD; totMC += mC; totED += eD; totEC += eC;
       });
 
       var r2 = function(v) { return Math.round(v * 100) / 100; };
       out.push(['', 'TOTAAL', '',
-        r2(totBD), r2(totBC), r2(totMD), r2(totMC), r2(totED), r2(totEC)]);
+        r2(totBD), r2(totBC), r2(totMD), r2(totMC), r2(totED), r2(totEC), r2(totED - totEC)]);
       return out;
     }
 
