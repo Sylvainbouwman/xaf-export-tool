@@ -1162,7 +1162,9 @@
       var prevEl = document.getElementById('analyse-preview');
       if (!rows.length) { prevEl.innerHTML = ''; return; }
 
-      // Kolommenbalans per rekening
+      // Mini-kolommenbalans per rekening (incl. beginsaldi)
+      var obMap2 = {};
+      parsed.obs.slice(1).forEach(function(r) { obMap2[r[1]] = (obMap2[r[1]] || 0) + r[5]; });
       var kbAcc = {};
       rows.forEach(function(r) {
         var id = r[8], b = r[IDX_BEDRAG];
@@ -1172,18 +1174,33 @@
       var r2 = function(v) { return Math.round(v * 100) / 100; };
       var kbH2 = '<table class="atbl"><thead><tr>'
         + '<th>Rekening</th><th>Omschrijving</th>'
-        + '<th style="text-align:right">Mutaties Debet</th>'
-        + '<th style="text-align:right">Mutaties Credit</th>'
+        + '<th style="text-align:right">Beg.saldo D</th>'
+        + '<th style="text-align:right">Beg.saldo C</th>'
+        + '<th style="text-align:right">Mutaties D</th>'
+        + '<th style="text-align:right">Mutaties C</th>'
+        + '<th style="text-align:right">Eindsaldo D</th>'
+        + '<th style="text-align:right">Eindsaldo C</th>'
         + '<th style="text-align:right">Saldo</th>'
         + '</tr></thead><tbody>';
       Object.keys(kbAcc).sort(function(a,b){ var an=parseFloat(a),bn=parseFloat(b); return (!isNaN(an)&&!isNaN(bn))?an-bn:a.localeCompare(b); }).forEach(function(id) {
-        var acc = kbAcc[id];
-        var d = r2(acc.d), c = r2(acc.c), s = r2(acc.d - acc.c);
+        var acc  = kbAcc[id];
+        var ob   = obMap2[id] || 0;
+        var mD   = r2(acc.d), mC = r2(acc.c);
+        var bD   = ob > 0 ? r2(ob)  : 0;
+        var bC   = ob < 0 ? r2(-ob) : 0;
+        var net  = r2(ob + mD - mC);
+        var eD   = net > 0 ? net : 0;
+        var eC   = net < 0 ? -net : 0;
+        var s    = r2(eD - eC);
         kbH2 += '<tr>'
           + '<td>' + htmlEsc(id) + '</td>'
           + '<td>' + htmlEsc(acc.desc) + '</td>'
-          + '<td class="num">' + fmtEur(d) + '</td>'
-          + '<td class="num">' + fmtEur(c) + '</td>'
+          + '<td class="num">' + fmtEur(bD) + '</td>'
+          + '<td class="num">' + fmtEur(bC) + '</td>'
+          + '<td class="num">' + fmtEur(mD) + '</td>'
+          + '<td class="num">' + fmtEur(mC) + '</td>'
+          + '<td class="num">' + fmtEur(eD) + '</td>'
+          + '<td class="num">' + fmtEur(eC) + '</td>'
           + '<td class="num" style="color:' + (s >= 0 ? '#1E2D4E' : '#dc2626') + '">' + fmtEur(s) + '</td>'
           + '</tr>';
       });
