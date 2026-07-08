@@ -1159,9 +1159,38 @@
         dlHint.textContent = '';
       }
 
-      var prev = rows.slice(0, 10);
       var prevEl = document.getElementById('analyse-preview');
-      if (!prev.length) { prevEl.innerHTML = ''; return; }
+      if (!rows.length) { prevEl.innerHTML = ''; return; }
+
+      // Kolommenbalans per rekening
+      var kbAcc = {};
+      rows.forEach(function(r) {
+        var id = r[8], b = r[IDX_BEDRAG];
+        if (!kbAcc[id]) kbAcc[id] = { desc: r[9]||'', d: 0, c: 0 };
+        if (b > 0) kbAcc[id].d += b; else kbAcc[id].c += -b;
+      });
+      var r2 = function(v) { return Math.round(v * 100) / 100; };
+      var kbH2 = '<table class="atbl"><thead><tr>'
+        + '<th>Rekening</th><th>Omschrijving</th>'
+        + '<th style="text-align:right">Mutaties Debet</th>'
+        + '<th style="text-align:right">Mutaties Credit</th>'
+        + '<th style="text-align:right">Saldo</th>'
+        + '</tr></thead><tbody>';
+      Object.keys(kbAcc).sort(function(a,b){ var an=parseFloat(a),bn=parseFloat(b); return (!isNaN(an)&&!isNaN(bn))?an-bn:a.localeCompare(b); }).forEach(function(id) {
+        var acc = kbAcc[id];
+        var d = r2(acc.d), c = r2(acc.c), s = r2(acc.d - acc.c);
+        kbH2 += '<tr>'
+          + '<td>' + htmlEsc(id) + '</td>'
+          + '<td>' + htmlEsc(acc.desc) + '</td>'
+          + '<td class="num">' + fmtEur(d) + '</td>'
+          + '<td class="num">' + fmtEur(c) + '</td>'
+          + '<td class="num" style="color:' + (s >= 0 ? '#1E2D4E' : '#dc2626') + '">' + fmtEur(s) + '</td>'
+          + '</tr>';
+      });
+      kbH2 += '</tbody></table>';
+
+      // Eerste 10 mutaties
+      var prev = rows.slice(0, 10);
       var h = '<table class="atbl"><thead><tr>'
         + '<th>Datum</th><th>Per.</th><th>Rek.</th><th>Omschrijving rekening</th>'
         + '<th>Boekingsomschrijving</th><th>Relatie</th><th style="text-align:right">Bedrag</th>'
@@ -1180,7 +1209,7 @@
       });
       h += '</tbody></table>';
       if (n > 10) h += '<div class="atbl-more">Eerste 10 van ' + fmt(n) + ' regels — download voor volledig overzicht.</div>';
-      prevEl.innerHTML = h;
+      prevEl.innerHTML = kbH2 + h;
     }
 
     document.getElementById('analyse-txt').addEventListener('input', function() {
