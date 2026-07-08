@@ -325,7 +325,8 @@
       var obs = [obH];
       getAll(xml, 'obLine').forEach(function(el) {
         var t = childTextsStr(el);
-        obs.push([t.nr || '', t.accID || '', accMap[t.accID] || '', parseFloat(t.amnt) || 0, t.amntTp || '', signed(t.amnt, t.amntTp)]);
+        var desc = t.accDesc || accMap[t.accID] || '';
+        obs.push([t.nr || '', t.accID || '', desc, parseFloat(t.amnt) || 0, t.amntTp || '', signed(t.amnt, t.amntTp)]);
       });
 
       var csH = ['custSupID', 'custSupName', 'custSupTp', 'commerceNr', 'taxRegIdent', 'contact', 'telephone', 'eMail'];
@@ -373,7 +374,7 @@
           rows.push([
             jrnID, jrnDesc, jrnTp,
             tx.nr || '', tx.desc || '', tx.periodNumber || '', tx.trDt || '',
-            li.nr || '', li.accID || '', (accMap && accMap[li.accID]) || '', li.docRef || '', li.effDate || '',
+            li.nr || '', li.accID || '', li.accDesc || (accMap && accMap[li.accID]) || '', li.docRef || '', li.effDate || '',
             li.desc || '', parseFloat(li.amnt) || 0, li.amntTp || '', signed(li.amnt, li.amntTp),
             vi.vatID || '', parseFloat(vi.vatAmnt) || 0, vi.vatPerc || '',
             csID, (custSupMap && csID && custSupMap[csID]) || '',
