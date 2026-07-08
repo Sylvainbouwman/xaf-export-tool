@@ -80,6 +80,7 @@
     #csvBtn             { background: #065f46; color: #fff; }
     #csvBtn:hover       { background: #054338; box-shadow: 0 2px 10px rgba(6,95,70,.25); }
     #csvBtn:disabled    { background: #94a3b8; cursor: default; box-shadow: none; }
+    #export-hint { display: none; margin-top: 10px; font-size: 0.81rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 7px; padding: 8px 12px; }
   </style>
 </head>
 <body>
@@ -143,6 +144,7 @@
         <button id="exportBtn">&#8659;&nbsp; Download Excel</button>
         <button id="csvBtn">&#8659;&nbsp; Download CSV</button>
       </div>
+      <div id="export-hint"></div>
 
       <footer style="margin-top: 32px; padding-top: 12px; border-top: 0.5px solid var(--bt-border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
         <div style="font-size:11px;color:#6B7280;display:flex;align-items:center;gap:7px;">
@@ -836,6 +838,7 @@
       document.getElementById('periode-wrap').style.display      = 'none';
       document.getElementById('periode-checks').innerHTML        = '';
       document.getElementById('periode-count').textContent       = '';
+      document.getElementById('export-hint').style.display      = 'none';
       hideProgress();
       setStatus('Starten…');
 
@@ -900,6 +903,15 @@
 
           exportBtn.style.display = 'inline-block';
           csvBtn.style.display    = 'inline-block';
+
+          var hintEl = document.getElementById('export-hint');
+          if (nLines > EXCEL_MUT_CAP) {
+            hintEl.innerHTML = '&#9888;&nbsp; <strong>Excel</strong> bevat max. ' + fmt(EXCEL_MUT_CAP) + ' van ' + fmt(nLines) + ' mutatieregels. Download <strong>CSV</strong> voor het volledige bestand.';
+            hintEl.style.display = 'block';
+          } else {
+            hintEl.style.display = 'none';
+          }
+
           worker = null;
         } else if (msg.type === 'error') {
           hideProgress();
