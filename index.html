@@ -639,6 +639,50 @@
       });
     }
 
+    var kbH = ['Rekening', 'Omschrijving', 'Type',
+                'Beg.saldo D', 'Beg.saldo C',
+                'Mutaties D',  'Mutaties C',
+                'Eindsaldo D', 'Eindsaldo C'];
+
+    function buildKolommenbalans(accs, obs, rows) {
+      // Beginsaldi per rekening (gesigneerd: D=positief, C=negatief)
+      var obMap = {};
+      obs.slice(1).forEach(function(r) {
+        obMap[r[1]] = (obMap[r[1]] || 0) + r[5];
+      });
+
+      // Mutaties per rekening
+      var mutD = {}, mutC = {};
+      rows.forEach(function(r) {
+        var id = r[8], b = r[14];
+        if (b > 0) mutD[id] = (mutD[id] || 0) + b;
+        else if (b < 0) mutC[id] = (mutC[id] || 0) - b;
+      });
+
+      var out = [];
+      var totBD = 0, totBC = 0, totMD = 0, totMC = 0, totED = 0, totEC = 0;
+
+      accs.slice(1).forEach(function(acc) {
+        var id = acc[0], desc = acc[1], tp = acc[2];
+        var ob  = obMap[id] || 0;
+        var mD  = Math.round((mutD[id] || 0) * 100) / 100;
+        var mC  = Math.round((mutC[id] || 0) * 100) / 100;
+        var net = Math.round((ob + mD - mC) * 100) / 100;
+        var bD  = ob > 0 ? Math.round(ob  * 100) / 100 : 0;
+        var bC  = ob < 0 ? Math.round(-ob * 100) / 100 : 0;
+        var eD  = net > 0 ? net : 0;
+        var eC  = net < 0 ? -net : 0;
+
+        out.push([id, desc, tp, bD || 0, bC || 0, mD || 0, mC || 0, eD || 0, eC || 0]);
+        totBD += bD; totBC += bC; totMD += mD; totMC += mC; totED += eD; totEC += eC;
+      });
+
+      var r2 = function(v) { return Math.round(v * 100) / 100; };
+      out.push(['', 'TOTAAL', '',
+        r2(totBD), r2(totBC), r2(totMD), r2(totMC), r2(totED), r2(totEC)]);
+      return out;
+    }
+
     function buildExcel(data, baseName) {
       setStatus('Excel genereren…');
       exportBtn.disabled = true;
@@ -657,6 +701,7 @@
           addSheet(wb, 'Beginsaldi',          data.obs[0],      data.obs.slice(1));
           if (data.custSups && data.custSups.length > 1)
             addSheet(wb, 'Deb_Cred',          data.custSups[0], data.custSups.slice(1));
+          addSheet(wb, 'Kolommenbalans',      kbH,              buildKolommenbalans(data.accs, data.obs, filteredRows));
           addSheet(wb, 'Mutaties',            data.lineH,       filteredRows);
 
           // Aansluitcheck always over ALL rows (period filter doesn't hide errors)
