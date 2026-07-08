@@ -947,7 +947,10 @@
       document.getElementById('periode-count').textContent       = '';
       document.getElementById('export-hint').style.display      = 'none';
       document.getElementById('analyse-wrap').style.display     = 'none';
-      document.getElementById('analyse-rek').innerHTML          = '<option value="">Alle rekeningen</option>';
+      document.getElementById('acc-picker').innerHTML           = '<option value="">— Kies een rekening —</option>';
+      document.getElementById('acc-chips').innerHTML            = '';
+      selectedAccIDs = [];
+      accDescCache   = {};
       document.getElementById('analyse-txt').value              = '';
       document.getElementById('analyse-info').innerHTML         = '';
       document.getElementById('analyse-preview').innerHTML      = '';
