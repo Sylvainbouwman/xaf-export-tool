@@ -386,47 +386,103 @@
           var mb = Math.round(file.size / 1024 / 1024);
           self.postMessage({ type: 'status', msg: pfx + 'Inlezen (' + mb + ' MB)…' });
 
-          var text = await file.text();
-          self.postMessage({ type: 'status', msg: pfx + 'Structuur analyseren…' });
+          // Detecteer codering via BOM (UTF-16 vs UTF-8)
+          var enc = 'utf-8';
+          try {
+            var bomBuf = await file.slice(0, 4).arrayBuffer();
+            var bom = new Uint8Array(bomBuf);
+            if ((bom[0] === 0xFF && bom[1] === 0xFE) || (bom[0] === 0xFE && bom[1] === 0xFF)) enc = 'utf-16';
+          } catch (ex) { /* gebruik utf-8 als fallback */ }
 
-          var tIdx = text.search(/<transactions[\s>]/);
-          var headerXml = tIdx === -1 ? text : text.slice(0, tIdx);
-          var transText = tIdx === -1 ? null  : text.slice(tIdx);
-          text = null;
+          // Stream het bestand chunk voor chunk (werkt ook voor bestanden van meerdere GB)
+          var reader = file.stream().pipeThrough(new TextDecoderStream(enc)).getReader();
+          var buffer = '';
+          var headerDone = false;
+          var jDone = 0;
+          var charsRead = 0;
+          var totalSize = file.size;
+          var lastPct = -1;
 
-          var hd = parseHeader(headerXml);
-          headerXml = null;
-
-          // Neem de eerste niet-lege versie van elk masterdataonderdeel
-          if (!merged.bedrijf) merged.bedrijf = hd.bedrijf;
-          if (!merged.accs     || merged.accs.length     <= 1) merged.accs     = hd.accs;
-          if (!merged.vats     || merged.vats.length     <= 1) merged.vats     = hd.vats;
-          if (!merged.obs      || merged.obs.length      <= 1) merged.obs      = hd.obs;
-          if (!merged.custSups || merged.custSups.length <= 1) merged.custSups = hd.custSups;
-
-          if (transText) {
-            var jCount = 0, cp = 0;
-            while ((cp = transText.indexOf('</journal>', cp)) !== -1) { jCount++; cp += 10; }
-
-            self.postMessage({ type: 'status', msg: pfx + 'Mutaties verwerken (' + jCount + ' dagboeken)…' });
-
-            var pos = 0, done = 0;
+          try {
             while (true) {
-              var jS = transText.indexOf('<journal', pos);
-              if (jS === -1) break;
-              var jE = transText.indexOf('</journal>', jS);
-              if (jE === -1) break;
-              jE += 10;
+              var result = await reader.read();
+              if (result.done) break;
+              var chunk = result.value;
+              buffer += chunk;
+              charsRead += chunk.length;
 
-              parseJournal(transText.slice(jS, jE), merged.rows);
+              if (!headerDone) {
+                var tIdx = buffer.search(/<transactions[\s>]/);
+                if (tIdx !== -1) {
+                  var headerXml = buffer.slice(0, tIdx);
+                  buffer = buffer.slice(tIdx);
+                  headerDone = true;
 
-              pos = jE;
-              done++;
-              if (done % 100 === 0 || done === jCount) {
-                self.postMessage({ type: 'progress', done: done, total: jCount, lines: merged.rows.length, fileIdx: fi, totalFiles: totalFiles });
+                  self.postMessage({ type: 'status', msg: pfx + 'Structuur analyseren…' });
+                  var hd = parseHeader(headerXml);
+                  headerXml = null;
+
+                  if (!merged.bedrijf) merged.bedrijf = hd.bedrijf;
+                  if (!merged.accs     || merged.accs.length     <= 1) merged.accs     = hd.accs;
+                  if (!merged.vats     || merged.vats.length     <= 1) merged.vats     = hd.vats;
+                  if (!merged.obs      || merged.obs.length      <= 1) merged.obs      = hd.obs;
+                  if (!merged.custSups || merged.custSups.length <= 1) merged.custSups = hd.custSups;
+
+                  self.postMessage({ type: 'status', msg: pfx + 'Mutaties verwerken…' });
+                }
+              }
+
+              if (headerDone) {
+                // Verwerk alle complete <journal>…</journal> blokken in de buffer
+                var pos = 0, processedUpTo = 0;
+                while (true) {
+                  var jS = buffer.indexOf('<journal', pos);
+                  if (jS === -1) break;
+                  var jE = buffer.indexOf('</journal>', jS);
+                  if (jE === -1) break;
+                  jE += 10;
+                  parseJournal(buffer.slice(jS, jE), merged.rows);
+                  pos = jE;
+                  processedUpTo = jE;
+                  jDone++;
+                }
+                if (processedUpTo > 0) buffer = buffer.slice(processedUpTo);
+              }
+
+              // Voortgang op basis van gelezen bytes (max 1 update per procentpunt)
+              var pct = totalSize > 0 ? Math.min(99, Math.round(charsRead / totalSize * 100)) : 0;
+              if (pct !== lastPct) {
+                lastPct = pct;
+                self.postMessage({ type: 'progress', done: jDone, total: 0, pct: pct, lines: merged.rows.length, fileIdx: fi, totalFiles: totalFiles });
               }
             }
+          } finally {
+            reader.releaseLock();
           }
+
+          // Verwerk eventuele resterende complete dagboeken na einde stream
+          if (headerDone) {
+            var pos2 = 0;
+            while (true) {
+              var jS2 = buffer.indexOf('<journal', pos2);
+              if (jS2 === -1) break;
+              var jE2 = buffer.indexOf('</journal>', jS2);
+              if (jE2 === -1) break;
+              jE2 += 10;
+              parseJournal(buffer.slice(jS2, jE2), merged.rows);
+              pos2 = jE2;
+              jDone++;
+            }
+          } else {
+            // Geen <transactions> gevonden — probeer hele buffer als header te parsen
+            var hd2 = parseHeader(buffer);
+            if (!merged.bedrijf) merged.bedrijf = hd2.bedrijf;
+            if (!merged.accs     || merged.accs.length     <= 1) merged.accs     = hd2.accs;
+            if (!merged.vats     || merged.vats.length     <= 1) merged.vats     = hd2.vats;
+            if (!merged.obs      || merged.obs.length      <= 1) merged.obs      = hd2.obs;
+            if (!merged.custSups || merged.custSups.length <= 1) merged.custSups = hd2.custSups;
+          }
+          buffer = null;
         }
 
         self.postMessage({
@@ -784,15 +840,17 @@
           setStatus(msg.msg);
         } else if (msg.type === 'progress') {
           var pct;
+          var innerPct = msg.total > 0 ? msg.done / msg.total : (msg.pct || 0) / 100;
           if (msg.totalFiles > 1) {
-            pct = Math.round(((msg.fileIdx + (msg.total > 0 ? msg.done / msg.total : 0)) / msg.totalFiles) * 100);
+            pct = Math.round(((msg.fileIdx + innerPct) / msg.totalFiles) * 100);
           } else {
-            pct = msg.total > 0 ? Math.round(msg.done / msg.total * 100) : 0;
+            pct = msg.total > 0 ? Math.round(msg.done / msg.total * 100) : (msg.pct || 0);
           }
           var pfxLabel = msg.totalFiles > 1 ? 'Bestand ' + (msg.fileIdx + 1) + '/' + msg.totalFiles + '  ·  ' : '';
-          setProgress(pct,
-            pfxLabel + msg.done + ' / ' + msg.total + ' dagboeken  ·  ' +
-            fmt(msg.lines) + ' mutatieregels');
+          var jrnLabel = msg.total > 0
+            ? msg.done + ' / ' + msg.total + ' dagboeken'
+            : msg.done + ' dagboeken';
+          setProgress(pct, pfxLabel + jrnLabel + '  ·  ' + fmt(msg.lines) + ' mutatieregels');
         } else if (msg.type === 'done') {
           hideProgress();
           parsed = msg;
