@@ -392,18 +392,20 @@
         ['RGS-versie',     hi.RGSVersion                       || ''],
       ];
 
-      var accH = ['accID', 'accDesc', 'accTp', 'RGScode', 'leadCode', 'leadDescription'];
+      var accKeys = ['accID', 'accDesc', 'accTp', 'RGScode', 'leadCode', 'leadDescription'];
+      var accH    = ['Rekening', 'Omschrijving', 'Type', 'RGS-code', 'Leadcode', 'Lead omschrijving'];
       var accs = [accH];
       getAll(xml, 'ledgerAccount').forEach(function(el) {
         var t = childTextsStr(el);
-        accs.push(accH.map(function(k) { return t[k] || ''; }));
+        accs.push(accKeys.map(function(k) { return t[k] || ''; }));
       });
 
-      var vatH = ['vatID', 'vatDesc', 'vatToPayAccID', 'vatToClaimAccID'];
+      var vatKeys = ['vatID', 'vatDesc', 'vatToPayAccID', 'vatToClaimAccID'];
+      var vatH    = ['BTW-code', 'Omschrijving', 'Rek. BTW te betalen', 'Rek. BTW te vorderen'];
       var vats = [vatH];
       getAll(xml, 'vatCode').forEach(function(el) {
         var t = childTextsStr(el);
-        vats.push(vatH.map(function(k) { return t[k] || ''; }));
+        vats.push(vatKeys.map(function(k) { return t[k] || ''; }));
       });
 
       var accMap = {};
@@ -411,7 +413,7 @@
 
       var custSupMap = {};
 
-      var obH = ['nr', 'accID', 'accDesc', 'amnt', 'amntTp', 'bedrag'];
+      var obH = ['Nr.', 'Rekening', 'Omschrijving', 'Bedrag (abs)', 'D/C', 'Bedrag'];
       var obs = [obH];
       getAll(xml, 'obLine').forEach(function(el) {
         var t = childTextsStr(el);
@@ -419,7 +421,7 @@
         obs.push([t.nr || '', t.accID || '', desc, parseFloat(t.amnt) || 0, t.amntTp || '', signed(t.amnt, t.amntTp)]);
       });
 
-      var csH = ['custSupID', 'custSupName', 'custSupTp', 'commerceNr', 'taxRegIdent', 'contact', 'telephone', 'eMail'];
+      var csH = ['Relatie ID', 'Relatie naam', 'Type', 'KvK-nummer', 'BTW-nummer', 'Contactpersoon', 'Telefoon', 'E-mail'];
       var custSups = [csH];
       getAll(xml, 'customerSupplier').forEach(function(el) {
         var t = childTextsStr(el);
@@ -440,12 +442,12 @@
     }
 
     var LINE_H = [
-      'jrnID', 'jrn_desc', 'jrnTp',
-      'tx_nr', 'tx_desc', 'tx_periodNumber', 'tx_trDt',
-      'line_nr', 'line_accID', 'line_accDesc', 'line_docRef', 'line_effDate',
-      'line_desc', 'line_amnt', 'line_amntTp', 'bedrag',
-      'vatID', 'vatAmnt', 'vatPerc',
-      'custSupID', 'custSupName',
+      'Journaal ID', 'Journaal omschrijving', 'Journaal type',
+      'Transactie nr.', 'Transactie omschrijving', 'Periode', 'Datum',
+      'Regelnr.', 'Rekening', 'Omschrijving rekening', 'Doc. referentie', 'Vervaldatum',
+      'Boekingsomschrijving', 'Bedrag (abs)', 'D/C', 'Bedrag',
+      'BTW-code', 'BTW-bedrag', 'BTW-%',
+      'Relatie ID', 'Relatie naam',
     ];
 
     function parseJournal(jrnXml, rows, accMap, custSupMap) {
@@ -600,9 +602,9 @@
           bedrijf:  merged.bedrijf  || [['Onderdeel', 'Waarde']],
           accs:     merged.accs     || [['accID', 'accDesc', 'accTp', 'RGScode', 'leadCode', 'leadDescription']],
           vats:     merged.vats     || [['vatID', 'vatDesc', 'vatToPayAccID', 'vatToClaimAccID']],
-          obs:      merged.obs      || [['nr', 'accID', 'accDesc', 'amnt', 'amntTp', 'bedrag']],
+          obs:      merged.obs      || [['Nr.', 'Rekening', 'Omschrijving', 'Bedrag (abs)', 'D/C', 'Bedrag']],
           obsInFile: !!(merged.obs && merged.obs.length > 1),
-          custSups: merged.custSups || [['custSupID', 'custSupName', 'custSupTp', 'commerceNr', 'taxRegIdent', 'contact', 'telephone', 'eMail']],
+          custSups: merged.custSups || [['Relatie ID', 'Relatie naam', 'Type', 'KvK-nummer', 'BTW-nummer', 'Contactpersoon', 'Telefoon', 'E-mail']],
           lineH:    LINE_H,
           rows:     merged.rows,
         });
@@ -775,7 +777,7 @@
     // ── Excel export ─────────────────────────────────────────────────────
     var MAX_ROWS   = 500000;  // SheetJS crasht boven ~15M cellen per sheet (18 kol × 500K = 9M)
     var IDX_PERIOD = 5;      // tx_periodNumber column index in rows
-    var IDX_BEDRAG = 15;     // bedrag (signed) column index in rows  (+1 voor line_accDesc)
+    var IDX_BEDRAG = 15;     // 'Bedrag' (signed) kolom index in rows
 
     function addSheet(wb, name, headers, dataRows) {
       // Split into multiple sheets when row count exceeds Excel's limit
@@ -908,7 +910,7 @@
             acRows.push(['--- ' + ac.unbalanced.length + ' transacties niet in balans' + (ubMax < ac.unbalanced.length ? ' (eerste ' + fmt(ubMax) + ' getoond)' : '') + ' ---', '', '', '', '', '', '', '', '']);
             acRows = acRows.concat(ac.unbalanced.slice(0, ubMax));
             addSheet(wb, 'Aansluitcheck',
-              ['niveau','jrn_desc','jrnTp','tx_nr','tx_desc','tx_trDt','debet','credit','verschil'],
+              ['Niveau','Journaal omschrijving','Journaal type','Transactie nr.','Transactie omschrijving','Datum','Debet','Credit','Verschil'],
               acRows);
           }
 
