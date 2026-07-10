@@ -16,7 +16,7 @@ Een standalone HTML-tool die XAF-auditfiles (XML Auditfile Financieel) inleest e
 
 ### Gesplitste bestanden (Exact Globe Next)
 
-Exact Globe Next splitst grote exports in meerdere bestanden (bijv. `_0.XAF` met stamgegevens en `_1.XAF` met mutaties). Selecteer alle bestanden tegelijk — de tool voegt ze automatisch samen.
+Exact Globe Next splitst grote exports in meerdere bestanden (bijv. `_0.XAF` met stamgegevens en `_1.XAF` met mutaties). Selecteer alle bestanden tegelijk — de tool voegt ze automatisch samen. Rekening­omschrijvingen en relaties uit het stamgegevens­bestand worden ook correct toegepast op mutaties uit de vervolgbestanden.
 
 ---
 
@@ -37,9 +37,9 @@ Alle tabbladen met rekeningnummers zijn gesorteerd op rekeningnummer (numeriek).
 
 ### Kolommen in het Mutaties-tabblad
 
-`jrnID` · `jrn_desc` · `jrnTp` · `tx_nr` · `tx_desc` · `tx_periodNumber` · `tx_trDt` · `line_nr` · `line_accID` · `line_accDesc` · `line_docRef` · `line_effDate` · `line_desc` · `line_amnt` · `line_amntTp` · `bedrag` · `vatID` · `vatAmnt` · `vatPerc` · `custSupID` · `custSupName`
+`Journaal ID` · `Journaal omschrijving` · `Journaal type` · `Transactie nr.` · `Transactie omschrijving` · `Periode` · `Datum` · `Regelnr.` · `Rekening` · `Omschrijving rekening` · `Doc. referentie` · `Vervaldatum` · `Boekingsomschrijving` · `Bedrag (abs)` · `D/C` · `Bedrag` · `BTW-code` · `BTW-bedrag` · `BTW-%` · `Relatie ID` · `Relatie naam`
 
-`line_accDesc` bevat de rekeningomschrijving; `custSupID` en `custSupName` bevatten de gekoppelde debiteur of crediteur.
+`Omschrijving rekening` bevat de naam van de grootboekrekening; `Relatie ID` en `Relatie naam` bevatten de gekoppelde debiteur of crediteur (indien aanwezig op die boekingsregel).
 
 ---
 
