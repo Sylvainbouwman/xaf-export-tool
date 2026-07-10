@@ -480,6 +480,9 @@
       var totalFiles = files.length;
       try {
         var merged = { bedrijf: null, accs: null, vats: null, obs: null, custSups: null, rows: [] };
+        // accMap en custSupMap worden gedeeld over alle bestanden zodat vervolgbestanden
+        // (zonder generalLedger) toch de rekening- en relatieomschrijvingen kunnen opzoeken.
+        var accMap = {}, custSupMap = {};
 
         for (var fi = 0; fi < totalFiles; fi++) {
           var file = files[fi];
@@ -503,7 +506,6 @@
           var charsRead = 0;
           var totalSize = file.size;
           var lastPct = -1;
-          var accMap = {}, custSupMap = {};
 
           try {
             while (true) {
@@ -529,8 +531,9 @@
                   if (!merged.vats     || merged.vats.length     <= 1) merged.vats     = hd.vats;
                   if (!merged.obs      || merged.obs.length      <= 1) merged.obs      = hd.obs;
                   if (!merged.custSups || merged.custSups.length <= 1) merged.custSups = hd.custSups;
-                  accMap     = hd.accMap     || {};
-                  custSupMap = hd.custSupMap || {};
+                  // Merge: vervolgbestanden mogen rekeningen/relaties uit eerdere bestanden hergebruiken
+                  Object.assign(accMap,     hd.accMap     || {});
+                  Object.assign(custSupMap, hd.custSupMap || {});
 
                   self.postMessage({ type: 'status', msg: pfx + 'Mutaties verwerken…' });
                 }
@@ -573,7 +576,7 @@
               var jE2 = buffer.indexOf('</journal>', jS2);
               if (jE2 === -1) break;
               jE2 += 10;
-              parseJournal(buffer.slice(jS2, jE2), merged.rows);
+              parseJournal(buffer.slice(jS2, jE2), merged.rows, accMap, custSupMap);
               pos2 = jE2;
               jDone++;
             }
