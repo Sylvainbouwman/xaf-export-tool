@@ -246,7 +246,7 @@
           <span>een <strong>bouwman.tools</strong> product</span>
           <div class="bt-tooltip">Gebouwd door Sylvain Bouwman</div>
         </div>
-        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 14 jul 2026, 16:05</div>
+        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 14 jul 2026, 17:30</div>
       </footer>
 
     </div>
@@ -602,6 +602,12 @@
           }
           buffer = null;
         }
+
+        // Post-processing: vul lege omschrijvingen in voor rijen die eerder geparseerd zijn dan de maps gevuld waren
+        merged.rows.forEach(function(row) {
+          if (!row[9]  && row[8])  row[9]  = accMap[row[8]]  || '';
+          if (!row[20] && row[19]) row[20] = custSupMap[row[19]] || '';
+        });
 
         self.postMessage({
           type:     'done',
