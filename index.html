@@ -596,6 +596,8 @@
             if (!merged.vats     || merged.vats.length     <= 1) merged.vats     = hd2.vats;
             if (!merged.obs      || merged.obs.length      <= 1) merged.obs      = hd2.obs;
             if (!merged.custSups || merged.custSups.length <= 1) merged.custSups = hd2.custSups;
+            Object.assign(accMap,     hd2.accMap     || {});
+            Object.assign(custSupMap, hd2.custSupMap || {});
           }
           buffer = null;
         }
