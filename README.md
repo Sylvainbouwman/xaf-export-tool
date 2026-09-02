@@ -37,7 +37,7 @@ Alle tabbladen met rekeningnummers zijn gesorteerd op rekeningnummer (numeriek).
 
 ### Kolommen in het Mutaties-tabblad
 
-`Journaal ID` · `Journaal omschrijving` · `Journaal type` · `Transactie nr.` · `Transactie omschrijving` · `Periode` · `Datum` · `Regelnr.` · `Rekening` · `Omschrijving rekening` · `Doc. referentie` · `Vervaldatum` · `Boekingsomschrijving` · `Bedrag (abs)` · `D/C` · `Bedrag` · `BTW-code` · `BTW-bedrag` · `BTW-%` · `Relatie ID` · `Relatie naam`
+`Journaal ID` · `Journaal omschrijving` · `Journaal type` · `Transactie nr.` · `Transactie omschrijving` · `Periode` · `Datum` · `Regelnr.` · `Rekening` · `Omschrijving rekening` · `Doc. referentie` · `Effectieve datum` · `Boekingsomschrijving` · `Bedrag (abs)` · `D/C` · `Bedrag` · `BTW-code` · `BTW-bedrag` · `BTW-%` · `Relatie ID` · `Relatie naam`
 
 `Omschrijving rekening` bevat de naam van de grootboekrekening; `Relatie ID` en `Relatie naam` bevatten de gekoppelde debiteur of crediteur (indien aanwezig op die boekingsregel).
 
@@ -111,7 +111,21 @@ Direct zichtbaar: een mini-kolommenbalans per rekening met beg.saldo, mutaties d
 
 ## XAF-versies
 
-Ondersteunt **XAF 3.1**, **XAF 3.2** en **XAF 4.0** (verplicht vanaf 1 januari 2026).
+Ondersteunt **XAF 3.1**, **XAF 3.2** en **XAF 4.0**. Vanaf **1 januari 2027**
+accepteert de Belastingdienst uitsluitend XAF 4.0 voor aanlevering; dat is
+aangekondigd door ODB op 22 april 2026. Oudere versies blijven relevant voor
+historische dossiers, en voor analyse zelfs rijker: zie de datumsemantiek
+hieronder.
+
+> **Datums per versie.** De kolom `Effectieve datum` bevat het XAF-element
+> `effDate`, en dat betekent niet in beide versies hetzelfde: in XAF 3.2 is het de
+> mutatiedatum (de datum waarop het evenement plaatsvond), in XAF 4.0 de datum
+> waarop de factuur is uitgereikt. Het is in geen van beide versies een
+> vervaldatum. Een vervaldatum bestaat alleen in de optionele subadministratie van
+> XAF 3.2 (`invDueDt` in `obSbLine` en `sbLine`), die XAF 4.0 heeft geschrapt.
+> `settDate` in 4.0 is ook geen vervaldatum maar de leverdatum of de datum van een
+> vooruitbetaling. Bron: XMLAuditfile Financieel 4.0.3, functionele hiërarchie en
+> het revisiedocument naar 3.2, Belastingdienst/ODB.
 
 > **XAF 3.1 (Exact Globe Next)**: in bank- en verkoopboeken exporteert Exact de tegenrekening niet als afzonderlijke boekingsregel maar via `offsetAccID`. Individuele transacties lijken daardoor niet in balans, maar het bestand als geheel sluit wel. De tool detecteert dit correct.
 
