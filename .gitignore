@@ -22,3 +22,7 @@ supabase/.temp/
 *.log
 *.db
 *.sqlite
+
+# Interne openstaande-vragenlijst. Deze repository is publiek; dit bestand
+# blijft daarom lokaal. Het overzicht in AI_kopgroep leest de map, niet Git.
+OPENSTAANDE-VRAGEN.md
