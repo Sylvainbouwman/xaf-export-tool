@@ -273,14 +273,14 @@
       var oLen = open.length;
       var pos = 0;
       while (true) {
-        var s = xml.indexOf(open, pos);
+        var s = xmlOpeningTag(xml, name, pos);
         if (s === -1) break;
         // Must be a proper tag boundary (not e.g. <journalEntry when looking for <journal)
         var nc = xml[s + oLen];
         if (nc !== '>' && nc !== ' ' && nc !== '\n' && nc !== '\r' && nc !== '\t' && nc !== '/') {
           pos = s + 1; continue;
         }
-        var e = xml.indexOf(close, s);
+        var e = xmlClosingTag(xml, close, s);
         if (e === -1) break;
         results.push(xml.slice(s, e + cLen));
         pos = e + cLen;
@@ -288,27 +288,81 @@
       return results;
     }
 
-    // Get text content of first <name>text</name> (or <name attr>text</name>) in xml.
-    function getText(xml, name) {
-      var open1 = '<' + name + '>';
-      var open2 = '<' + name + ' ';
-      var close = '</' + name + '>';
-      var s = xml.indexOf(open1);
-      var contentStart;
-      if (s !== -1) {
-        contentStart = s + open1.length;
-      } else {
-        s = xml.indexOf(open2);
-        if (s === -1) return '';
-        var gt = xml.indexOf('>', s);
-        if (gt === -1 || xml[gt - 1] === '/') return ''; // not found or self-closing
-        contentStart = gt + 1;
+    // Decode only XML's five predefined entities and valid XML 1.0 character
+    // references, exactly once. Unknown/invalid references remain visible.
+    // No DOM/HTML parser, DTD resolver or external resource access is involved.
+    function decodeXmlText(text) {
+      var named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+      return text.replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);/g, function(ref, name) {
+        if (name[0] !== '#') return named[name];
+        var cp = name[1] === 'x' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+        if (cp === 9 || cp === 10 || cp === 13 ||
+            (cp >= 0x20 && cp <= 0xD7FF) || (cp >= 0xE000 && cp <= 0xFFFD) ||
+            (cp >= 0x10000 && cp <= 0x10FFFF)) return String.fromCodePoint(cp);
+        return ref;
+      });
+    }
+
+    // End of a literal XML section; -1 means this is ordinary markup.
+    function xmlLiteralEnd(xml, pos) {
+      var token = xml.startsWith('<![CDATA[', pos) ? ']]>' :
+                  xml.startsWith('<!--', pos) ? '-->' :
+                  xml.startsWith('<?', pos) ? '?>' : null;
+      if (!token) return -1;
+      var end = xml.indexOf(token, pos + (token === ']]>' ? 9 : token === '-->' ? 4 : 2));
+      return end === -1 ? xml.length : end + token.length;
+    }
+
+    // A closing-tag-looking string inside CDATA/comment/PI is still literal text.
+    function xmlClosingTag(xml, close, pos) {
+      while ((pos = xml.indexOf('<', pos)) !== -1) {
+        var literalEnd = xmlLiteralEnd(xml, pos);
+        if (literalEnd !== -1) { pos = literalEnd; continue; }
+        if (xml.startsWith(close, pos)) return pos;
+        pos++;
       }
-      var e = xml.indexOf(close, contentStart);
+      return -1;
+    }
+
+    function xmlOpeningTag(xml, name, pos) {
+      var open = '<' + name;
+      while ((pos = xml.indexOf('<', pos)) !== -1) {
+        var literalEnd = xmlLiteralEnd(xml, pos);
+        if (literalEnd !== -1) { pos = literalEnd; continue; }
+        if (xml.startsWith(open, pos) && /[\s/>]/.test(xml[pos + open.length] || '')) return pos;
+        pos++;
+      }
+      return -1;
+    }
+
+    // Leaf content only. Preserve whitespace and CDATA literally, decode regular
+    // text segments once, ignore comments/PIs, and reject nested markup/DTD.
+    function xmlLeafText(inner) {
+      var parts = [], pos = 0;
+      while (pos < inner.length) {
+        var lt = inner.indexOf('<', pos);
+        if (lt === -1) { parts.push(decodeXmlText(inner.slice(pos))); break; }
+        parts.push(decodeXmlText(inner.slice(pos, lt)));
+        var end = xmlLiteralEnd(inner, lt);
+        if (end === -1) return null;
+        if (inner.startsWith('<![CDATA[', lt)) parts.push(inner.slice(lt + 9, end - 3));
+        pos = end;
+      }
+      return parts.join('');
+    }
+
+    // Get text content of the first named leaf element.
+    function getText(xml, name) {
+      var close = '</' + name + '>';
+      var s = xmlOpeningTag(xml, name, 0);
+      if (s === -1) return '';
+      var gt = xml.indexOf('>', s);
+      if (gt === -1 || xml[gt - 1] === '/') return '';
+      var contentStart = gt + 1;
+      var e = xmlClosingTag(xml, close, contentStart);
       if (e === -1) return '';
-      var v = xml.slice(contentStart, e).trim();
-      var cd = v.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
-      return cd ? cd[1] : v;
+      var text = xmlLeafText(xml.slice(contentStart, e));
+      return text === null ? '' : text;
     }
 
     // Extract direct leaf-element children as { localName: textContent }.
@@ -323,6 +377,8 @@
       while (pos < content.length) {
         var ts = content.indexOf('<', pos);
         if (ts === -1) break;
+        var literalEnd = xmlLiteralEnd(content, ts);
+        if (literalEnd !== -1) { pos = literalEnd; continue; }
         var c1 = content[ts + 1];
         if (c1 === '/' || c1 === '!' || c1 === '?') {
           var gt = content.indexOf('>', ts);
@@ -331,20 +387,21 @@
         }
         var gt = content.indexOf('>', ts + 1);
         if (gt === -1) break;
-        if (content[gt - 1] === '/') { pos = gt + 1; continue; } // self-closing
-        var tagStr  = content.slice(ts + 1, gt);
+        var selfClosing = content[gt - 1] === '/';
+        var tagStr  = content.slice(ts + 1, selfClosing ? gt - 1 : gt);
         var spaceAt = tagStr.search(/[\s]/);
         var fullTag = spaceAt === -1 ? tagStr : tagStr.slice(0, spaceAt);
         var local   = fullTag.indexOf(':') !== -1 ? fullTag.split(':')[1] : fullTag;
+        if (selfClosing) {
+          if (!(local in out)) out[local] = '';
+          pos = gt + 1; continue;
+        }
         var ctag    = '</' + fullTag + '>';
-        var ce      = content.indexOf(ctag, gt + 1);
+        var ce      = xmlClosingTag(content, ctag, gt + 1);
         if (ce === -1) { pos = gt + 1; continue; }
         var inner = content.slice(gt + 1, ce);
-        if (inner.indexOf('<') === -1 && !(local in out)) {
-          var v = inner.trim();
-          var cd = v.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
-          out[local] = cd ? cd[1] : v;
-        }
+        var text = xmlLeafText(inner);
+        if (text !== null && !(local in out)) out[local] = text;
         pos = ce + ctag.length;
       }
       return out;
