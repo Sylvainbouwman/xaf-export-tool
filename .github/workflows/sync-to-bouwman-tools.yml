@@ -11,6 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Tests draaien
+        run: node --test tests/xml-text.test.mjs
+
       - name: Kopieer naar bouwman-tools
         env:
           GH_TOKEN: ${{ secrets.BOUWMAN_TOOLS_PAT }}
