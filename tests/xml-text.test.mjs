@@ -78,3 +78,61 @@ test('real header ledger and relation fields are decoded once', () => {
   assert.equal(parsed.accMap['1000'], 'Rekening &amp; test');
   assert.equal(parsed.custSupMap.R1, 'Relatie & test');
 });
+
+// Execute the complete real worker with synthetic byte streams, no main app or I/O.
+async function runWorker(xml, cuts = []) {
+  const bytes = new TextEncoder().encode(xml);
+  const messages = [];
+  const context = vm.createContext({
+    self: { postMessage: value => messages.push(value) }, TextDecoderStream,
+  }, { codeGeneration: { strings: false, wasm: false } });
+  vm.runInContext(worker[1], context, { timeout: 1000 });
+  const boundaries = [0, ...cuts, bytes.length];
+  const file = {
+    size: bytes.length,
+    slice: (start, end) => ({ arrayBuffer: async () => bytes.slice(start, end).buffer }),
+    stream: () => new ReadableStream({ start(controller) {
+      for (let i = 1; i < boundaries.length; i++) controller.enqueue(bytes.slice(boundaries[i - 1], boundaries[i]));
+      controller.close();
+    } }),
+  };
+  await context.self.onmessage({ data: file });
+  assert.equal(messages.find(message => message.type === 'error'), undefined);
+  const done = messages.filter(message => message.type === 'done');
+  assert.equal(done.length, 1);
+  return done[0];
+}
+
+test('real worker preserves journal-looking CDATA across every byte boundary', async () => {
+  const description = ' A</journal>B € ';
+  const xml = `<auditfile><header/><transactions><journal><jrnID>J1</jrnID><transaction><trLine><desc><![CDATA[${description}]]></desc><amnt>5.00</amnt><amntTp>C</amntTp></trLine></transaction></journal></transactions></auditfile>`;
+  const bytes = new TextEncoder().encode(xml);
+  for (let cut = 0; cut <= bytes.length; cut++) {
+    const done = await runWorker(xml, cut === 0 || cut === bytes.length ? [] : [cut]);
+    assert.equal(done.rows.length, 1, `byte boundary ${cut}`);
+    assert.equal(done.rows[0][12], description, `byte boundary ${cut}`);
+    assert.equal(done.rows[0][15], -5);
+  }
+  const done = await runWorker(xml, Array.from({ length: bytes.length - 1 }, (_, i) => i + 1));
+  assert.equal(done.rows.length, 1);
+  assert.equal(done.rows[0][12], description);
+});
+
+test('real worker normalizes identifiers and preserves free text whitespace', async () => {
+  const xml = '<auditfile><header/><generalLedger><ledgerAccount><accID> 1000 </accID><accDesc> Testrekening </accDesc></ledgerAccount></generalLedger><customersSuppliers><customerSupplier><custSupID> R1 </custSupID><custSupName> Testrelatie </custSupName></customerSupplier></customersSuppliers><transactions><journal><jrnID> J1 </jrnID><desc> Journaal </desc><transaction><nr> T1 </nr><desc> Transactie </desc><trLine><nr> 1 </nr><accID> 1000 </accID><custSupID> R1 </custSupID><desc> Boeking </desc><amnt> 5.00 </amnt><amntTp> C </amntTp><vat><vatID> V1 </vatID></vat></trLine></transaction></journal></transactions></auditfile>';
+  const done = await runWorker(xml);
+  const row = done.rows[0];
+  assert.equal(done.accs[1][0], '1000');
+  assert.equal(done.custSups[1][0], 'R1');
+  assert.deepEqual([row[0], row[3], row[7], row[8], row[16], row[19]], ['J1', 'T1', '1', '1000', 'V1', 'R1']);
+  assert.deepEqual([row[1], row[4], row[9], row[12], row[20]], [' Journaal ', ' Transactie ', ' Testrekening ', ' Boeking ', ' Testrelatie ']);
+  assert.equal(row[15], -5);
+  // Both directions of inconsistent padding must resolve to the same map key.
+  const unpaddedMaster = xml.replace('<accID> 1000 </accID>', '<accID>1000</accID>').replace('<custSupID> R1 </custSupID>', '<custSupID>R1</custSupID>');
+  assert.equal((await runWorker(unpaddedMaster)).rows[0][9], ' Testrekening ');
+  assert.equal((await runWorker(unpaddedMaster)).rows[0][20], ' Testrelatie ');
+  const unpaddedLine = xml.replace('<trLine><nr> 1 </nr><accID> 1000 </accID><custSupID> R1 </custSupID>', '<trLine><nr> 1 </nr><accID>1000</accID><custSupID>R1</custSupID>');
+  const fromPaddedMaster = await runWorker(unpaddedLine);
+  assert.equal(fromPaddedMaster.rows[0][9], ' Testrekening ');
+  assert.equal(fromPaddedMaster.rows[0][20], ' Testrelatie ');
+});

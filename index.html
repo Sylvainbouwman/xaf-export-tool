@@ -365,6 +365,13 @@
       return text === null ? '' : text;
     }
 
+    // Identifiers retain the previous padding normalization so maps and joins
+    // keep matching; free text (descriptions, names, references) stays literal.
+    function normalizeXmlIdentifier(name, text) {
+      return /^(accID|offsetAccID|jrnID|custSupID|relationshipID|vatID|vatToPayAccID|vatToClaimAccID|nr)$/.test(name)
+        ? text.trim() : text;
+    }
+
     // Extract direct leaf-element children as { localName: textContent }.
     // Skips elements that contain nested tags (keeps only text-only children).
     function childTextsStr(xml) {
@@ -401,7 +408,7 @@
         if (ce === -1) { pos = gt + 1; continue; }
         var inner = content.slice(gt + 1, ce);
         var text = xmlLeafText(inner);
-        if (text !== null && !(local in out)) out[local] = text;
+        if (text !== null && !(local in out)) out[local] = normalizeXmlIdentifier(local, text);
         pos = ce + ctag.length;
       }
       return out;
@@ -601,9 +608,9 @@
                 // Verwerk alle complete <journal>…</journal> blokken in de buffer
                 var pos = 0, processedUpTo = 0;
                 while (true) {
-                  var jS = buffer.indexOf('<journal', pos);
+                  var jS = xmlOpeningTag(buffer, 'journal', pos);
                   if (jS === -1) break;
-                  var jE = buffer.indexOf('</journal>', jS);
+                  var jE = xmlClosingTag(buffer, '</journal>', jS);
                   if (jE === -1) break;
                   jE += 10;
                   parseJournal(buffer.slice(jS, jE), merged.rows, accMap, custSupMap);
@@ -629,9 +636,9 @@
           if (headerDone) {
             var pos2 = 0;
             while (true) {
-              var jS2 = buffer.indexOf('<journal', pos2);
+              var jS2 = xmlOpeningTag(buffer, 'journal', pos2);
               if (jS2 === -1) break;
-              var jE2 = buffer.indexOf('</journal>', jS2);
+              var jE2 = xmlClosingTag(buffer, '</journal>', jS2);
               if (jE2 === -1) break;
               jE2 += 10;
               parseJournal(buffer.slice(jS2, jE2), merged.rows, accMap, custSupMap);
