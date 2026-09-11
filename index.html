@@ -246,7 +246,7 @@
           <span>een <strong>bouwman.tools</strong> product</span>
           <div class="bt-tooltip">Gebouwd door Sylvain Bouwman</div>
         </div>
-        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 11 sep 2026, 09:06</div>
+        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 11 sep 2026, 10:51</div>
       </footer>
 
     </div>
@@ -262,6 +262,30 @@
     function signed(amnt, tp) {
       var v = parseFloat(amnt) || 0;
       return (tp || '').trim().toUpperCase() === 'C' ? -v : v;
+    }
+
+    // Hetzelfde teken, maar zonder stille aanname. Binnen <vat> is de aanduiding
+    // verplicht en kent zij precies twee waarden:
+    //   <xsd:element name="vatAmntTp" type="str:TypeDebitcredittype"/>
+    //   <xsd:simpleType name="TypeDebitcredittype"> <xsd:length value="1"/>
+    //   <xsd:enumeration value="C"/> <xsd:enumeration value="D"/>
+    // Zo staat het in XmlAuditfileFinancieel4.0.xsd uit XAF 4.0.3 van
+    // Belastingdienst/ODB, en gelijkluidend in XmlAuditfileFinancieel3.2.xsd
+    // (namespace http://www.auditfiles.nl/XAF/3.2, type Debitcredittype). Er staat
+    // geen minOccurs bij, dus het element is in beide versies verplicht.
+    // Staat er toch niets, of iets anders dan C of D, dan is het bestand op dat punt
+    // niet geldig en raden wij niet: de getekende kolom blijft leeg en de
+    // aanduidingskolom toont onveranderd wat er werkelijk in het bestand stond.
+    // Stil als debet meetellen zou een creditbedrag laten optellen alsof het debet
+    // was, en dat is precies de fout die deze kolommen moeten voorkomen.
+    function signedVat(amnt, tp) {
+      var t = (tp || '').trim().toUpperCase();
+      if (t !== 'C' && t !== 'D') return '';
+      var v = parseFloat(amnt) || 0;
+      // Nul blijft nul. Zonder deze regel levert een creditbedrag van nul -0 op, en
+      // dat komt ook als -0 in de cel terecht.
+      if (t === 'C' && v !== 0) v = -v;
+      return v;
     }
 
     // Find all complete <name>...</name> blocks in xml (non-recursive, no same-name nesting).
@@ -506,10 +530,14 @@
       return { bedrijf: bedrijf, accs: accs, vats: vats, obs: obs, custSups: custSups, accMap: accMap, custSupMap: custSupMap };
     }
 
-    // Kolomkoppen van een mutatieregel. Deze eenentwintig liggen vast en de volgorde
+    // Kolomkoppen van een mutatieregel. Deze drieentwintig liggen vast en de volgorde
     // is bindend: de rest van de code adresseert ze op positie (IDX_PERIOD = 5,
     // IDX_BEDRAG = 15 en de naslag op row[8], row[9], row[19] en row[20] na het
     // parsen). Een nieuwe kolom hoort er dus achter, nooit ertussen.
+    // Daarom staan 'BTW D/C' en 'BTW-bedrag getekend' achter 'Relatie naam' en niet
+    // naast 'BTW-bedrag': zo houdt elke bestaande kolom niet alleen haar betekenis
+    // maar ook haar plaats, en blijft een verwijzing naar kolom T of U in een
+    // spreadsheet van een eerdere export gewoon kloppen.
     var LINE_H = [
       'Journaal ID', 'Journaal omschrijving', 'Journaal type',
       'Transactie nr.', 'Transactie omschrijving', 'Periode', 'Datum',
@@ -517,6 +545,7 @@
       'Boekingsomschrijving', 'Bedrag (abs)', 'D/C', 'Bedrag',
       'BTW-code', 'BTW-bedrag', 'BTW-%',
       'Relatie ID', 'Relatie naam',
+      'BTW D/C', 'BTW-bedrag getekend',
     ];
     var BASE_COLS = LINE_H.length;
 
@@ -526,14 +555,14 @@
     // ongewijzigd in XmlAuditfileFinancieel4.0.xsd uit de uitgave XAF 4.0.3 van
     // Belastingdienst/ODB; de functionele hierarchie bij die uitgave noemt het pad
     // transaction line - VAT met 0..99, O. Beide versies leest deze tool.
-    // Het eerste element vult de vaste kolommen BTW-code, BTW-bedrag en BTW-%; elk
-    // volgend element krijgt een eigen drietal achteraan, genummerd vanaf 2. Een
-    // bestand waarin geen enkele regel meer dan een btw-element heeft, houdt daardoor
-    // exact dezelfde kolommen als voorheen.
+    // Het eerste element vult de vaste kolommen BTW-code, BTW-bedrag, BTW-%, BTW D/C
+    // en BTW-bedrag getekend; elk volgend element krijgt een eigen vijftal achteraan,
+    // genummerd vanaf 2. Een bestand waarin geen enkele regel meer dan een btw-element
+    // heeft, houdt daardoor precies de drieentwintig vaste kolommen.
     function buildLineH(cols) {
       var h = LINE_H.slice();
       for (var n = 2; h.length < cols; n++)
-        h.push('BTW-code ' + n, 'BTW-bedrag ' + n, 'BTW-% ' + n);
+        h.push('BTW-code ' + n, 'BTW-bedrag ' + n, 'BTW-% ' + n, 'BTW D/C ' + n, 'BTW-bedrag getekend ' + n);
       return h;
     }
 
@@ -557,12 +586,14 @@
             li.desc || '', parseFloat(li.amnt) || 0, li.amntTp || '', signed(li.amnt, li.amntTp),
             vi.vatID || '', parseFloat(vi.vatAmnt) || 0, vi.vatPerc || '',
             csID, (custSupMap && csID && custSupMap[csID]) || '',
+            vi.vatAmntTp || '', signedVat(vi.vatAmnt, vi.vatAmntTp),
           ];
-          // Btw-element twee en verder, elk in een eigen drietal kolommen. De regel
+          // Btw-element twee en verder, elk in een eigen vijftal kolommen. De regel
           // blijft een rij: het aantal rijen en daarmee de aansluitcheck, de
           // kolommenbalans en de rijtelling veranderen niet.
           for (var vx = 1; vx < vats.length; vx++)
-            row.push(vats[vx].vatID || '', parseFloat(vats[vx].vatAmnt) || 0, vats[vx].vatPerc || '');
+            row.push(vats[vx].vatID || '', parseFloat(vats[vx].vatAmnt) || 0, vats[vx].vatPerc || '',
+                     vats[vx].vatAmntTp || '', signedVat(vats[vx].vatAmnt, vats[vx].vatAmntTp));
 
           rows.push(row);
         });
@@ -892,13 +923,17 @@
 
     // ── Excel export ─────────────────────────────────────────────────────
     // Grens voor het Mutaties-tabblad. SheetJS loopt vast boven ongeveer 15 miljoen
-    // cellen per tabblad. Een mutatierij heeft eenentwintig vaste kolommen (LINE_H),
-    // plus drie per extra btw-element op de breedste regel van het bestand. Bij
-    // eenentwintig kolommen is 500.000 x 21 = 10,5 miljoen cellen, dus 30% onder die
-    // grens; pas vanaf eenendertig kolommen zou 500.000 rijen erboven uitkomen.
+    // cellen per tabblad. Een mutatierij heeft drieentwintig vaste kolommen (LINE_H),
+    // plus vijf per extra btw-element op de breedste regel van het bestand. Bij
+    // drieentwintig kolommen is 500.000 x 23 = 11,5 miljoen cellen, dus 23,3% onder
+    // die grens; pas vanaf eenendertig kolommen zou 500.000 rijen erboven uitkomen.
     // De grens is daarom het laagste van 500.000 rijen en het cellenbudget gedeeld
-    // door het gemeten aantal kolommen. Tot en met dertig kolommen, dat wil zeggen
-    // tot en met vier btw-elementen op de breedste regel, verandert er niets.
+    // door het gemeten aantal kolommen. Tot en met dertig kolommen verandert er niets.
+    // Doordat een extra btw-element nu vijf kolommen kost in plaats van drie, blijft
+    // dat gelden tot en met twee btw-elementen op de breedste regel (28 kolommen);
+    // bij drie (33 kolommen) zakt de grens naar 454.545 rijen. Dat was voor deze
+    // wijziging tot en met vier elementen. Bij het maximum van negenennegentig
+    // elementen, 513 kolommen, is de grens 29.239 rijen.
     var ROW_CAP  = 500000;
     var CELL_CAP = 15000000;
     function mutCap(headers) {

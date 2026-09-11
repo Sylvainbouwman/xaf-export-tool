@@ -37,7 +37,7 @@ Alle tabbladen met rekeningnummers zijn gesorteerd op rekeningnummer (numeriek).
 
 ### Kolommen in het Mutaties-tabblad
 
-`Journaal ID` · `Journaal omschrijving` · `Journaal type` · `Transactie nr.` · `Transactie omschrijving` · `Periode` · `Datum` · `Regelnr.` · `Rekening` · `Omschrijving rekening` · `Doc. referentie` · `Effectieve datum` · `Boekingsomschrijving` · `Bedrag (abs)` · `D/C` · `Bedrag` · `BTW-code` · `BTW-bedrag` · `BTW-%` · `Relatie ID` · `Relatie naam`
+`Journaal ID` · `Journaal omschrijving` · `Journaal type` · `Transactie nr.` · `Transactie omschrijving` · `Periode` · `Datum` · `Regelnr.` · `Rekening` · `Omschrijving rekening` · `Doc. referentie` · `Effectieve datum` · `Boekingsomschrijving` · `Bedrag (abs)` · `D/C` · `Bedrag` · `BTW-code` · `BTW-bedrag` · `BTW-%` · `Relatie ID` · `Relatie naam` · `BTW D/C` · `BTW-bedrag getekend`
 
 `Omschrijving rekening` bevat de naam van de grootboekrekening; `Relatie ID` en `Relatie naam` bevatten de gekoppelde debiteur of crediteur (indien aanwezig op die boekingsregel).
 
@@ -57,19 +57,45 @@ staan.
 > line - VAT` met `0..99, O` en de omschrijving "Geeft de mogelijkheid om de BTW te
 > specificeren van een journaalpost".
 
-Het eerste btw-element vult de kolommen `BTW-code`, `BTW-bedrag` en `BTW-%`. Bevat een
-regel in het bestand meer elementen, dan komen daar per extra element drie kolommen
-achter: `BTW-code 2`, `BTW-bedrag 2`, `BTW-% 2`, vervolgens `BTW-code 3` enzovoort. Het
-aantal extra kolommen volgt de breedste regel in het bestand; regels met minder
-elementen houden daar lege cellen. Heeft geen enkele regel meer dan een btw-element,
-dan zijn de kolommen exact die hierboven en verandert er niets aan de export.
+Het eerste btw-element vult de kolommen `BTW-code`, `BTW-bedrag`, `BTW-%`, `BTW D/C` en
+`BTW-bedrag getekend`. Bevat een regel in het bestand meer elementen, dan komen daar per
+extra element vijf kolommen achter: `BTW-code 2`, `BTW-bedrag 2`, `BTW-% 2`,
+`BTW D/C 2`, `BTW-bedrag getekend 2`, vervolgens `BTW-code 3` enzovoort. Het aantal
+extra kolommen volgt de breedste regel in het bestand; regels met minder elementen
+houden daar lege cellen. Heeft geen enkele regel meer dan een btw-element, dan zijn de
+kolommen exact die hierboven en verandert er niets aan de export.
 
 De boekingsregel blijft een rij. Het aantal mutatieregels, de aansluitcheck en de
 kolommenbalans veranderen dus niet door meervoudige btw.
 
-Het element `vatAmntTp`, de debet/credit-aanduiding bij een btw-bedrag, wordt nog niet
-geëxporteerd. `BTW-bedrag` is dus het bedrag zonder teken, ook wanneer een regel een
-debet- en een creditelement naast elkaar draagt.
+### Het teken bij het btw-bedrag
+
+`BTW-bedrag` is het bedrag zoals het in het bestand staat, zonder teken. Het XAF-element
+`vatAmntTp` zegt of dat bedrag debet of credit is, en dat staat sinds deze versie in twee
+eigen kolommen: `BTW D/C` toont de aanduiding ongewijzigd zoals zij in het bestand staat,
+en `BTW-bedrag getekend` is het bedrag met teken, credit negatief. Dat is hetzelfde
+patroon als `Bedrag (abs)`, `D/C` en `Bedrag` bij het regelbedrag.
+
+Dat maakt verschil op een regel die een debet- en een creditelement naast elkaar draagt.
+Optellen van de kolommen zonder teken telt die twee dan dezelfde kant op; met
+`BTW-bedrag getekend` komt het saldo eruit.
+
+> **Vindplaats.** `vatAmntTp` is binnen `vat` verplicht en kent precies twee waarden:
+> `<xsd:element name="vatAmntTp" type="str:TypeDebitcredittype"/>`, zonder `minOccurs`,
+> met `<xsd:length value="1"/>` en de opsomming `C` en `D`. Zo staat het in
+> `XmlAuditfileFinancieel4.0.xsd` uit `XMLAuditfile-Financieel-XAF-v-4.0.3.zip` van
+> Belastingdienst/ODB, en gelijkluidend in `XmlAuditfileFinancieel3.2.xsd` (namespace
+> `http://www.auditfiles.nl/XAF/3.2`, type `Debitcredittype`). De functionele hiërarchie
+> `XMLAuditfileFinancieel_4.0_FunHie.pdf`, versie 4.0 van 6 februari 2025, pagina 10,
+> omschrijft het als "Indicatie of het btw bedrag Debet of Credit is" met de codelijst
+> DebitCredit, `C` Credit en `D` Debit. Tussen XAF 3.2 en 4.0 verschilt het element
+> inhoudelijk niet.
+
+Omdat de aanduiding verplicht is, hoort zij er altijd te staan. Doet een pakket dat toch
+niet, of staat er iets anders dan `C` of `D`, dan raadt de tool niet: `BTW D/C` toont wat
+er werkelijk in het bestand stond, desnoods niets, en `BTW-bedrag getekend` blijft leeg.
+Een ontbrekende aanduiding stil als debet meetellen zou een creditbedrag laten optellen
+alsof het debet was, en juist dat moeten deze kolommen voorkomen.
 
 ---
 
@@ -105,10 +131,12 @@ altijd volledig.
 | > 1.000.000 | Na CSV-download: tip om Power Query of Power BI te gebruiken |
 
 De grens van 500.000 komt niet uit Excel zelf maar uit SheetJS, dat boven ongeveer
-vijftien miljoen cellen per tabblad vastloopt. Een mutatieregel heeft eenentwintig
-kolommen, dus 500.000 regels is 10,5 miljoen cellen. Draagt een bestand extra
+vijftien miljoen cellen per tabblad vastloopt. Een mutatieregel heeft drieëntwintig
+kolommen, dus 500.000 regels is 11,5 miljoen cellen. Draagt een bestand extra
 btw-kolommen (zie hierboven), dan schuift de grens mee omlaag zodra de regel breder
-wordt dan dertig kolommen, zodat het cellenbudget gelijk blijft.
+wordt dan dertig kolommen, zodat het cellenbudget gelijk blijft. In de praktijk betekent
+dat: tot en met twee btw-elementen op de breedste regel blijft de grens 500.000, bij drie
+elementen zakt zij naar 454.545 regels.
 
 ---
 
