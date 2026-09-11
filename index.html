@@ -246,7 +246,7 @@
           <span>een <strong>bouwman.tools</strong> product</span>
           <div class="bt-tooltip">Gebouwd door Sylvain Bouwman</div>
         </div>
-        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 2 sep 2026, 20:16</div>
+        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 11 sep 2026, 09:06</div>
       </footer>
 
     </div>
@@ -506,6 +506,10 @@
       return { bedrijf: bedrijf, accs: accs, vats: vats, obs: obs, custSups: custSups, accMap: accMap, custSupMap: custSupMap };
     }
 
+    // Kolomkoppen van een mutatieregel. Deze eenentwintig liggen vast en de volgorde
+    // is bindend: de rest van de code adresseert ze op positie (IDX_PERIOD = 5,
+    // IDX_BEDRAG = 15 en de naslag op row[8], row[9], row[19] en row[20] na het
+    // parsen). Een nieuwe kolom hoort er dus achter, nooit ertussen.
     var LINE_H = [
       'Journaal ID', 'Journaal omschrijving', 'Journaal type',
       'Transactie nr.', 'Transactie omschrijving', 'Periode', 'Datum',
@@ -514,6 +518,24 @@
       'BTW-code', 'BTW-bedrag', 'BTW-%',
       'Relatie ID', 'Relatie naam',
     ];
+    var BASE_COLS = LINE_H.length;
+
+    // Een trLine mag nul tot negenennegentig <vat>-elementen bevatten:
+    // <xsd:element name="vat" minOccurs="0" maxOccurs="99">. Zo staat het in
+    // XmlAuditfileFinancieel3.2.xsd (namespace http://www.auditfiles.nl/XAF/3.2) en
+    // ongewijzigd in XmlAuditfileFinancieel4.0.xsd uit de uitgave XAF 4.0.3 van
+    // Belastingdienst/ODB; de functionele hierarchie bij die uitgave noemt het pad
+    // transaction line - VAT met 0..99, O. Beide versies leest deze tool.
+    // Het eerste element vult de vaste kolommen BTW-code, BTW-bedrag en BTW-%; elk
+    // volgend element krijgt een eigen drietal achteraan, genummerd vanaf 2. Een
+    // bestand waarin geen enkele regel meer dan een btw-element heeft, houdt daardoor
+    // exact dezelfde kolommen als voorheen.
+    function buildLineH(cols) {
+      var h = LINE_H.slice();
+      for (var n = 2; h.length < cols; n++)
+        h.push('BTW-code ' + n, 'BTW-bedrag ' + n, 'BTW-% ' + n);
+      return h;
+    }
 
     function parseJournal(jrnXml, rows, accMap, custSupMap) {
       var jt     = childTextsStr(jrnXml);
@@ -523,19 +545,26 @@
         var tx = childTextsStr(txXml);
 
         getAll(txXml, 'trLine').forEach(function(trXml) {
-          var li      = childTextsStr(trXml);
-          var vatXmls = getAll(trXml, 'vat');
-          var vi      = vatXmls.length ? childTextsStr(vatXmls[0]) : {};
-          var csID    = li.custSupID || '';
+          var li   = childTextsStr(trXml);
+          var vats = getAll(trXml, 'vat').map(childTextsStr);
+          var vi   = vats.length ? vats[0] : {};
+          var csID = li.custSupID || '';
 
-          rows.push([
+          var row = [
             jrnID, jrnDesc, jrnTp,
             tx.nr || '', tx.desc || '', tx.periodNumber || '', tx.trDt || '',
             li.nr || '', li.accID || '', li.accDesc || (accMap && accMap[li.accID]) || '', li.docRef || '', li.effDate || '',
             li.desc || '', parseFloat(li.amnt) || 0, li.amntTp || '', signed(li.amnt, li.amntTp),
             vi.vatID || '', parseFloat(vi.vatAmnt) || 0, vi.vatPerc || '',
             csID, (custSupMap && csID && custSupMap[csID]) || '',
-          ]);
+          ];
+          // Btw-element twee en verder, elk in een eigen drietal kolommen. De regel
+          // blijft een rij: het aantal rijen en daarmee de aansluitcheck, de
+          // kolommenbalans en de rijtelling veranderen niet.
+          for (var vx = 1; vx < vats.length; vx++)
+            row.push(vats[vx].vatID || '', parseFloat(vats[vx].vatAmnt) || 0, vats[vx].vatPerc || '');
+
+          rows.push(row);
         });
       });
     }
@@ -667,11 +696,22 @@
           buffer = null;
         }
 
-        // Post-processing: vul lege omschrijvingen in voor rijen die eerder geparseerd zijn dan de maps gevuld waren
+        // Post-processing: vul lege omschrijvingen in voor rijen die eerder geparseerd zijn dan de maps gevuld waren.
+        // Dezelfde doorloop meet de breedste rij: die bepaalt hoeveel btw-kolommen dit bestand nodig heeft.
+        var widest = BASE_COLS;
         merged.rows.forEach(function(row) {
           if (!row[9]  && row[8])  row[9]  = accMap[row[8]]  || '';
           if (!row[20] && row[19]) row[20] = custSupMap[row[19]] || '';
+          if (row.length > widest) widest = row.length;
         });
+        // Rijen even breed maken, anders levert de CSV minder velden dan er koppen zijn.
+        // Een lege cel betekent hier "dit btw-element bestaat niet op deze regel"; een
+        // nul zou een btw-bedrag van nul zijn.
+        if (widest > BASE_COLS) {
+          merged.rows.forEach(function(row) {
+            while (row.length < widest) row.push('');
+          });
+        }
 
         self.postMessage({
           type:     'done',
@@ -681,7 +721,7 @@
           obs:      merged.obs      || [['Nr.', 'Rekening', 'Omschrijving', 'Bedrag (abs)', 'D/C', 'Bedrag']],
           obsInFile: !!(merged.obs && merged.obs.length > 1),
           custSups: merged.custSups || [['Relatie ID', 'Relatie naam', 'Type', 'KvK-nummer', 'BTW-nummer', 'Contactpersoon', 'Telefoon', 'E-mail']],
-          lineH:    LINE_H,
+          lineH:    buildLineH(widest),
           rows:     merged.rows,
         });
       } catch (err) {
@@ -851,18 +891,32 @@
     }
 
     // ── Excel export ─────────────────────────────────────────────────────
-    var MAX_ROWS   = 500000;  // SheetJS crasht boven ~15M cellen per sheet (18 kol × 500K = 9M)
+    // Grens voor het Mutaties-tabblad. SheetJS loopt vast boven ongeveer 15 miljoen
+    // cellen per tabblad. Een mutatierij heeft eenentwintig vaste kolommen (LINE_H),
+    // plus drie per extra btw-element op de breedste regel van het bestand. Bij
+    // eenentwintig kolommen is 500.000 x 21 = 10,5 miljoen cellen, dus 30% onder die
+    // grens; pas vanaf eenendertig kolommen zou 500.000 rijen erboven uitkomen.
+    // De grens is daarom het laagste van 500.000 rijen en het cellenbudget gedeeld
+    // door het gemeten aantal kolommen. Tot en met dertig kolommen, dat wil zeggen
+    // tot en met vier btw-elementen op de breedste regel, verandert er niets.
+    var ROW_CAP  = 500000;
+    var CELL_CAP = 15000000;
+    function mutCap(headers) {
+      var cols = Math.max((headers && headers.length) || 0, 1);
+      return Math.min(ROW_CAP, Math.floor(CELL_CAP / cols));
+    }
     var IDX_PERIOD = 5;      // tx_periodNumber column index in rows
     var IDX_BEDRAG = 15;     // 'Bedrag' (signed) kolom index in rows
 
     function addSheet(wb, name, headers, dataRows) {
       // Split into multiple sheets when row count exceeds Excel's limit
+      var cap = mutCap(headers);
       var chunks = [];
-      if (dataRows.length <= MAX_ROWS) {
+      if (dataRows.length <= cap) {
         chunks.push(dataRows);
       } else {
-        for (var i = 0; i < dataRows.length; i += MAX_ROWS)
-          chunks.push(dataRows.slice(i, i + MAX_ROWS));
+        for (var i = 0; i < dataRows.length; i += cap)
+          chunks.push(dataRows.slice(i, i + cap));
       }
 
       chunks.forEach(function(chunk, idx) {
@@ -931,8 +985,6 @@
       return out;
     }
 
-    var EXCEL_MUT_CAP = 500000; // SheetJS-grens: ~9M cellen per sheet (500K × 18 kol)
-
     function sortByAcc(rows, col) {
       return rows.slice().sort(function(a, b) {
         var av = String(a[col] || ''), bv = String(b[col] || '');
@@ -943,11 +995,12 @@
 
     function buildExcel(data, baseName) {
       var filteredRows = filterRows(data.rows);
-      var isTruncated  = filteredRows.length > EXCEL_MUT_CAP;
-      var mutRows      = isTruncated ? filteredRows.slice(0, EXCEL_MUT_CAP) : filteredRows;
+      var cap          = mutCap(data.lineH);
+      var isTruncated  = filteredRows.length > cap;
+      var mutRows      = isTruncated ? filteredRows.slice(0, cap) : filteredRows;
 
       setStatus(isTruncated
-        ? 'Excel genereren (eerste ' + fmt(EXCEL_MUT_CAP) + ' van ' + fmt(filteredRows.length) + ' regels)…'
+        ? 'Excel genereren (eerste ' + fmt(cap) + ' van ' + fmt(filteredRows.length) + ' regels)…'
         : 'Excel genereren…');
       exportBtn.disabled = true;
 
@@ -992,7 +1045,7 @@
 
           XLSX.writeFile(wb, baseName + '_raw.xlsx');
           setStatus(isTruncated
-            ? 'Excel gedownload — mutaties beperkt tot eerste ' + fmt(EXCEL_MUT_CAP) + ' van ' + fmt(filteredRows.length) + ' regels. Gebruik CSV voor de volledige export.'
+            ? 'Excel gedownload — mutaties beperkt tot eerste ' + fmt(cap) + ' van ' + fmt(filteredRows.length) + ' regels. Gebruik CSV voor de volledige export.'
             : 'Klaar.', 'ok');
         } catch (ex) {
           setStatus('Excel fout: ' + ex.message, 'err');
@@ -1096,7 +1149,9 @@
             document.getElementById('obs-warning').style.display = 'none';
             document.getElementById('kb-hint').textContent = 'Rekeningen + beginsaldi + saldo\'s — altijd klein en snel';
           }
-          var mutLbl = nLines > MAX_ROWS * 4 ? 'regels (gebruik CSV!)' : nLines > MAX_ROWS ? 'regels (gesplitst)' : 'Mutatieregels';
+          // De Mutaties-tab wordt boven de grens afgekapt, niet gesplitst; het label zegt dat ook.
+          var cap = mutCap(msg.lineH);
+          var mutLbl = nLines > cap * 4 ? 'regels (gebruik CSV!)' : nLines > cap ? 'regels (Excel beperkt)' : 'Mutatieregels';
           setStatCard('stat-mutaties', fmt(nLines), mutLbl);
           setStatCard('stat-btw', fmt(msg.vats.length - 1));
           if (nCs > 0) {
@@ -1123,14 +1178,14 @@
           // Period filter + live count
           renderPeriodFilter(msg.rows);
           updatePeriodCount();
-          if (nLines > EXCEL_MUT_CAP) populateAnalyse(msg);
+          if (nLines > cap) populateAnalyse(msg);
 
           exportBtn.style.display = 'inline-block';
           csvBtn.style.display    = 'inline-block';
 
           var hintEl = document.getElementById('export-hint');
-          if (nLines > EXCEL_MUT_CAP) {
-            hintEl.innerHTML = '&#9888;&nbsp; <strong>Excel</strong> bevat max. ' + fmt(EXCEL_MUT_CAP) + ' van ' + fmt(nLines) + ' mutatieregels. Download <strong>CSV</strong> voor het volledige bestand.';
+          if (nLines > cap) {
+            hintEl.innerHTML = '&#9888;&nbsp; <strong>Excel</strong> bevat max. ' + fmt(cap) + ' van ' + fmt(nLines) + ' mutatieregels. Download <strong>CSV</strong> voor het volledige bestand.';
             hintEl.style.display = 'block';
           } else {
             hintEl.style.display = 'none';
@@ -1262,7 +1317,7 @@
                       : ' &nbsp;<span style="color:#dc2626">⚠ sluit niet</span>');
 
       var dlHint = document.getElementById('dl-hint');
-      if (n > EXCEL_MUT_CAP) {
+      if (n > mutCap(parsed.lineH)) {
         dlHint.innerHTML = '&#9888; Selectie heeft <strong>' + fmt(n) + '</strong> regels — voeg minder rekeningen toe of verfijn de zoekterm.';
         dlHint.style.color = '#dc2626';
       } else if (!selectedAccIDs.length) {
@@ -1383,7 +1438,7 @@
       if (!parsed) return;
       var rows = getAnalyseRows();
       if (!rows.length) { setStatus('Geen regels voor deze selectie.', 'err'); return; }
-      if (rows.length > EXCEL_MUT_CAP) {
+      if (rows.length > mutCap(parsed.lineH)) {
         setStatus('Selectie heeft ' + fmt(rows.length) + ' regels — voeg minder rekeningen toe.', 'err'); return;
       }
       var suffix = selectedAccIDs.length === 1 ? '_rek' + selectedAccIDs[0] : '_selectie';
@@ -1419,7 +1474,7 @@
           if (!allPer && !selPer[String(r[IDX_PERIOD])]) return false;
           return r[8] === id;
         }).length;
-        if (cnt > EXCEL_MUT_CAP) tooLarge.push(id + ' (' + fmt(cnt) + ' regels)');
+        if (cnt > mutCap(parsed.lineH)) tooLarge.push(id + ' (' + fmt(cnt) + ' regels)');
       });
       if (tooLarge.length) {
         setStatus('Te groot voor Excel: ' + tooLarge.join(', '), 'err'); return;

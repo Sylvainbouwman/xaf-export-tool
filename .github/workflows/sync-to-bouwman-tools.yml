@@ -16,7 +16,7 @@ jobs:
           node-version: '22'
 
       - name: Tests draaien
-        run: node --test tests/xml-text.test.mjs
+        run: node --test tests/*.test.mjs
 
       - name: Kopieer naar bouwman-tools
         env:
