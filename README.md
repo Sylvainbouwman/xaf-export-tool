@@ -41,6 +41,36 @@ Alle tabbladen met rekeningnummers zijn gesorteerd op rekeningnummer (numeriek).
 
 `Omschrijving rekening` bevat de naam van de grootboekrekening; `Relatie ID` en `Relatie naam` bevatten de gekoppelde debiteur of crediteur (indien aanwezig op die boekingsregel).
 
+### Meerdere btw-elementen op een boekingsregel
+
+Een boekingsregel mag volgens de XAF-standaard meer dan een btw-element dragen: op
+`vat` binnen `trLine` staat `minOccurs="0" maxOccurs="99"`. Dat geldt in beide versies
+die de tool leest, en het komt voor zodra het hoge en het lage tarief op dezelfde regel
+staan.
+
+> **Vindplaats.** XAF 3.2: `XmlAuditfileFinancieel3.2.xsd`, namespace
+> `http://www.auditfiles.nl/XAF/3.2`, `vat` binnen `trLine`. XAF 4.0:
+> `XmlAuditfileFinancieel4.0.xsd` uit `XMLAuditfile-Financieel-XAF-v-4.0.3.zip`
+> van Belastingdienst/ODB, zelfde cardinaliteit. De functionele hiërarchie bij die
+> uitgave, `XMLAuditfileFinancieel_4.0_FunHie.pdf` van het XML Platform, 6 februari
+> 2025, noemt het pad `company - transactions - journal - transaction - transaction
+> line - VAT` met `0..99, O` en de omschrijving "Geeft de mogelijkheid om de BTW te
+> specificeren van een journaalpost".
+
+Het eerste btw-element vult de kolommen `BTW-code`, `BTW-bedrag` en `BTW-%`. Bevat een
+regel in het bestand meer elementen, dan komen daar per extra element drie kolommen
+achter: `BTW-code 2`, `BTW-bedrag 2`, `BTW-% 2`, vervolgens `BTW-code 3` enzovoort. Het
+aantal extra kolommen volgt de breedste regel in het bestand; regels met minder
+elementen houden daar lege cellen. Heeft geen enkele regel meer dan een btw-element,
+dan zijn de kolommen exact die hierboven en verandert er niets aan de export.
+
+De boekingsregel blijft een rij. Het aantal mutatieregels, de aansluitcheck en de
+kolommenbalans veranderen dus niet door meervoudige btw.
+
+Het element `vatAmntTp`, de debet/credit-aanduiding bij een btw-bedrag, wordt nog niet
+geëxporteerd. `BTW-bedrag` is dus het bedrag zonder teken, ook wanneer een regel een
+debet- en een creditelement naast elkaar draagt.
+
 ---
 
 ## Beginsaldi niet in auditfile
@@ -65,12 +95,20 @@ De tool is geoptimaliseerd voor bestanden van honderden MB tot meerdere GB:
 
 ### Excel-limieten bij grote bestanden
 
+Het Mutaties-tabblad wordt boven de grens **afgekapt, niet gesplitst**. De CSV blijft
+altijd volledig.
+
 | Regels | Gedrag |
 |---|---|
-| ≤ 500.000 | Normaal Excel-bestand |
-| 500.001 – 1.000.000 | Mutaties gesplitst over meerdere tabs |
-| > 500.000 | Waarschuwing zichtbaar + analysevenster verschijnt |
+| ≤ 500.000 | Volledige export naar Excel |
+| > 500.000 | Excel bevat de eerste 500.000 mutatieregels; waarschuwing zichtbaar, analysevenster verschijnt en de melding na de download noemt hoeveel regels zijn weggelaten. Gebruik CSV voor het volledige bestand |
 | > 1.000.000 | Na CSV-download: tip om Power Query of Power BI te gebruiken |
+
+De grens van 500.000 komt niet uit Excel zelf maar uit SheetJS, dat boven ongeveer
+vijftien miljoen cellen per tabblad vastloopt. Een mutatieregel heeft eenentwintig
+kolommen, dus 500.000 regels is 10,5 miljoen cellen. Draagt een bestand extra
+btw-kolommen (zie hierboven), dan schuift de grens mee omlaag zodra de regel breder
+wordt dan dertig kolommen, zodat het cellenbudget gelijk blijft.
 
 ---
 

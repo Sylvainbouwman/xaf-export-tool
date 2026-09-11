@@ -1,19 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import vm from 'node:vm';
 import test from 'node:test';
+import { laadKern, runWorker } from './worker-kern.mjs';
 
 // Read only the actual worker core; never run the app, imports, or worker handler.
-// An optional source path allows the same regressions to run against the old core.
-const source = process.env.XAF_TEST_SOURCE || fileURLToPath(new URL('../index.html', import.meta.url));
-const html = readFileSync(source, 'utf8');
-const worker = html.match(/<script\b[^>]*id="worker-src"[^>]*>([\s\S]*?)<\/script>/);
-assert.ok(worker, 'worker-src must exist');
-const handler = worker[1].indexOf('self.onmessage =');
-assert.ok(handler > 0, 'worker handler boundary must exist');
-const core = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
-vm.runInContext(worker[1].slice(0, handler), core, { timeout: 1000 });
+const core = laadKern();
 
 const cases = [
   ['plain Unicode', 'Café € 漢字 😀', 'Café € 漢字 😀'],
@@ -78,30 +68,6 @@ test('real header ledger and relation fields are decoded once', () => {
   assert.equal(parsed.accMap['1000'], 'Rekening &amp; test');
   assert.equal(parsed.custSupMap.R1, 'Relatie & test');
 });
-
-// Execute the complete real worker with synthetic byte streams, no main app or I/O.
-async function runWorker(xml, cuts = []) {
-  const bytes = new TextEncoder().encode(xml);
-  const messages = [];
-  const context = vm.createContext({
-    self: { postMessage: value => messages.push(value) }, TextDecoderStream,
-  }, { codeGeneration: { strings: false, wasm: false } });
-  vm.runInContext(worker[1], context, { timeout: 1000 });
-  const boundaries = [0, ...cuts, bytes.length];
-  const file = {
-    size: bytes.length,
-    slice: (start, end) => ({ arrayBuffer: async () => bytes.slice(start, end).buffer }),
-    stream: () => new ReadableStream({ start(controller) {
-      for (let i = 1; i < boundaries.length; i++) controller.enqueue(bytes.slice(boundaries[i - 1], boundaries[i]));
-      controller.close();
-    } }),
-  };
-  await context.self.onmessage({ data: file });
-  assert.equal(messages.find(message => message.type === 'error'), undefined);
-  const done = messages.filter(message => message.type === 'done');
-  assert.equal(done.length, 1);
-  return done[0];
-}
 
 test('real worker preserves journal-looking CDATA across every byte boundary', async () => {
   const description = ' A</journal>B € ';
