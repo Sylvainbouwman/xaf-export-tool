@@ -59,7 +59,9 @@ test('real journal rows decode descriptions and leave amounts/columns intact', (
   const rows = [];
   core.parseJournal('<journal><jrnID>J1</jrnID><desc>Journaal &amp; test</desc><jrnTp>B</jrnTp><transaction><nr>T1</nr><desc><![CDATA[Transactie <test>]]></desc><periodNumber>1</periodNumber><trDt>2026-01-01</trDt><trLine><nr>1</nr><accID>1000</accID><docRef>&amp;lt;</docRef><desc>Boeking &#x20AC; &amp; test</desc><amnt>123.45</amnt><amntTp>C</amntTp><vat><vatID>V1</vatID><vatAmnt>21.00</vatAmnt><vatPerc>21</vatPerc></vat><custSupID>R1</custSupID></trLine></transaction></journal>', rows, {1000: 'Rekening & test'}, {R1: 'Relatie & test'});
   assert.equal(rows.length, 1);
-  assert.deepEqual(Array.from(rows[0]), ['J1', 'Journaal & test', 'B', 'T1', 'Transactie <test>', '1', '2026-01-01', '1', '1000', 'Rekening & test', '&lt;', '', 'Boeking € & test', 123.45, 'C', -123.45, 'V1', 21, '21', 'R1', 'Relatie & test']);
+  // Het vat-element hierboven draagt geen vatAmntTp, dus blijven de twee laatste
+  // kolommen leeg: geen aanduiding en geen getekend btw-bedrag.
+  assert.deepEqual(Array.from(rows[0]), ['J1', 'Journaal & test', 'B', 'T1', 'Transactie <test>', '1', '2026-01-01', '1', '1000', 'Rekening & test', '&lt;', '', 'Boeking € & test', 123.45, 'C', -123.45, 'V1', 21, '21', 'R1', 'Relatie & test', '', '']);
 });
 
 test('real header ledger and relation fields are decoded once', () => {
