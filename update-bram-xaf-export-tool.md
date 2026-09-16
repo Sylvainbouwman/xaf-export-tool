@@ -103,20 +103,18 @@ werkelijk staat, desnoods niets, en `BTW-bedrag getekend` blijft dan leeg. Stil 
 meetellen zou een creditbedrag laten optellen alsof het debet was, en juist dat moeten deze
 kolommen voorkomen.
 
-### 2.5 Gevolg voor de rijgrens in Excel
+### 2.5 Gevolg voor de rijgrens in Excel (herzien op 16 september 2026, zie §6)
 
 Het Mutaties-tabblad wordt boven een grens afgekapt, niet gesplitst; de CSV blijft altijd
-volledig. Die grens komt niet uit Excel maar uit SheetJS, dat boven ongeveer vijftien
-miljoen cellen per tabblad vastloopt. Het commentaar in de code rekende met 18 kolommen
-terwijl het er 21 waren; dat is nageteld en de grens is nu het laagste van 500.000 rijen en
-het cellenbudget gedeeld door het gemeten aantal kolommen.
-
-Met de basis op 23 kolommen is 500.000 × 23 = 11.500.000 cellen, een marge van 23,3% op het
-budget. Het kantelpunt ligt bij 31 kolommen. Omdat een extra btw-element vijf kolommen kost,
-geldt de grens van 500.000 tot en met twee btw-elementen op de breedste regel; bij drie
-elementen zakt zij naar 454.545 rijen en bij het theoretische maximum van 99 elementen naar
-29.239. Het cellenbudget van ~15 miljoen is een overgenomen aanname uit de oude code en niet
-zelf gemeten; zie §6.
+volledig. Tot 16 september 2026 stond hier dat de grens 500.000 rijen was, afgeleid van
+een aanname dat SheetJS boven ongeveer vijftien miljoen cellen per tabblad vastloopt. Die
+aanname is inmiddels gemeten en bleek onjuist — zie §6 voor de meting. De grens is nu
+50.000 rijen bij de basis van 23 kolommen, met dezelfde rekenwijze als voorheen: het
+laagste van een vast aantal rijen (ROW_CAP) en een cellenbudget (CELL_CAP) gedeeld door het
+gemeten aantal kolommen. Omdat het cellenbudget nu op 1.150.000 staat (23 × 50.000), verlaagt
+elk extra btw-element de grens al meteen, in plaats van pas na twee of vier elementen zoals
+voorheen: bij drie btw-elementen op de breedste regel (33 kolommen) is de grens 34.848 rijen,
+bij het theoretische maximum van 99 elementen (513 kolommen) 2.241 rijen.
 
 ## 3. Bronnen en conclusies
 
@@ -181,9 +179,28 @@ hebben gestaan.
 
 ## 6. Open punten
 
-- **Het cellenbudget van ~15 miljoen is niet zelf gemeten.** Het is een aanname uit de
-  oudere code over de grens waarboven SheetJS vastloopt. De afgeleide rijgrenzen kloppen
-  rekenkundig, maar het uitgangspunt zelf verdient een meting met een echt groot bestand.
+- **Opgelost op 16 september 2026: het cellenbudget van ~15 miljoen was niet zelf gemeten
+  en bleek onjuist.** Het was een aanname uit oudere code over de grens waarboven SheetJS
+  vastloopt. Gemeten in een browser, met dezelfde SheetJS-versie (0.18.5) als de tool via
+  het CDN laadt, en met synthetische mutatieregels (geen klantmateriaal): er bestaat geen
+  harde celgrens in SheetJS, ook niet in de documentatie van de bibliotheek. De export
+  loopt vast op het werkgeheugen van het browsertabblad, met een `RangeError` tijdens het
+  wegschrijven. Bij 23 kolommen en gangbare tekstlengte lag het omslagpunt tussen 137.500
+  regels (nog goed) en 140.000 regels (loopt vast) — rond de 3,2 miljoen cellen, niet 15
+  miljoen. De uitkomst is bovendien contentafhankelijk en niet alleen een functie van het
+  celaantal: dezelfde 100.000 regels die met gangbare tekst wel lukten, liepen alsnog vast
+  toen drie tekstvelden 200 tekens langer werden gemaakt. Sylvain heeft op basis daarvan een
+  nieuwe grens van 50.000 regels bij 23 kolommen gekozen — ruim (bijna 3×) onder het gemeten
+  omslagpunt, als marge voor langere omschrijvingen dan de testdata en voor computers met
+  minder werkgeheugen dan de testbrowser. Vastgelegd in `index.html` (ROW_CAP/CELL_CAP) en
+  in de README; zie §2.5 voor het effect op de rijgrenzen bij meerdere btw-elementen. Wat
+  na deze meting nog openligt: de grens is nog steeds één vaste waarde die niet meekijkt
+  naar de werkelijke tekstlengte in een specifiek bestand. Een bestand met ongewoon lange
+  omschrijvingen kan in theorie nog steeds vastlopen ver onder 50.000 regels, en een bestand
+  met korte, uniforme velden zou juist veel meer regels aankunnen. Dat vangen zou vereisen
+  dat de tool de fout bij het schrijven zelf opvangt en dan pas kleiner probeert of naar CSV
+  verwijst, in plaats van vooraf op basis van rijen en kolommen te schatten. Dat is een
+  grotere wijziging dan deze meting, en ligt hier als voorstel, geen toezegging.
 - **De rijgrens is een afkapping, geen splitsing.** Boven de grens bevat het
   Mutaties-tabblad de eerste N regels en waarschuwt de tool; de CSV blijft volledig. De
   vraag of afkappen met waarschuwing hier de juiste keuze is, of dat splitsen over meerdere

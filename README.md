@@ -126,23 +126,30 @@ altijd volledig.
 
 | Regels | Gedrag |
 |---|---|
-| ≤ 500.000 | Volledige export naar Excel |
-| > 500.000 | Excel bevat de eerste 500.000 mutatieregels; waarschuwing zichtbaar, analysevenster verschijnt en de melding na de download noemt hoeveel regels zijn weggelaten. Gebruik CSV voor het volledige bestand |
+| ≤ 50.000 | Volledige export naar Excel |
+| > 50.000 | Excel bevat de eerste 50.000 mutatieregels; waarschuwing zichtbaar, analysevenster verschijnt en de melding na de download noemt hoeveel regels zijn weggelaten. Gebruik CSV voor het volledige bestand |
 | > 1.000.000 | Na CSV-download: tip om Power Query of Power BI te gebruiken |
 
-De grens van 500.000 komt niet uit Excel zelf maar uit SheetJS, dat boven ongeveer
-vijftien miljoen cellen per tabblad vastloopt. Een mutatieregel heeft drieëntwintig
-kolommen, dus 500.000 regels is 11,5 miljoen cellen. Draagt een bestand extra
-btw-kolommen (zie hierboven), dan schuift de grens mee omlaag zodra de regel breder
-wordt dan dertig kolommen, zodat het cellenbudget gelijk blijft. In de praktijk betekent
-dat: tot en met twee btw-elementen op de breedste regel blijft de grens 500.000, bij drie
-elementen zakt zij naar 454.545 regels.
+De grens van 50.000 komt niet uit Excel zelf. Tot 16 september 2026 stond hier een
+ongemeten aanname dat SheetJS (de Excel-bibliotheek) vastloopt boven ongeveer vijftien
+miljoen cellen per tabblad. Dat is toen echt gemeten, in een browser, met dezelfde
+SheetJS-versie als de tool gebruikt: er is geen harde celgrens in SheetJS, de export
+loopt vast op het werkgeheugen van het browsertabblad, en dat gebeurde bij 23 kolommen
+en gangbare tekstlengte al rond de **3,2 miljoen cellen** (tussen 137.500 en 140.000
+regels) — niet bij 15 miljoen. De uitkomst hangt ook af van hoe lang de omschrijvingen
+in het bestand zijn: dezelfde 100.000 regels die met gangbare tekst wel lukten, liepen
+alsnog vast met langere tekstvelden. De grens van 50.000 regels is daarom met ruime
+marge onder dat gemeten omslagpunt gekozen. Draagt een bestand extra btw-kolommen (zie
+hierboven), dan schuift de grens verder omlaag: bij drie btw-elementen op de breedste
+regel (33 kolommen) is de grens 34.848 regels, bij het maximum van negenennegentig
+elementen (513 kolommen) 2.241 regels. Details en de meetopzet:
+`update-bram-xaf-export-tool.md`, §6.
 
 ---
 
 ## Analysevenster (verschijnt automatisch bij grote bestanden)
 
-Bij meer dan 500.000 mutatieregels verschijnt onder de downloadknoppen automatisch een analysevenster met twee secties.
+Bij meer dan 50.000 mutatieregels verschijnt onder de downloadknoppen automatisch een analysevenster met twee secties.
 
 ### Samenvatting
 
@@ -160,7 +167,7 @@ Maak een gerichte selectie en download alleen wat je nodig hebt:
 
 Direct zichtbaar: een mini-kolommenbalans per rekening met beg.saldo, mutaties debet/credit, eindsaldo en **saldo**, gevolgd door een preview van de eerste 10 mutatieregels.
 
-**Download als 1 Excel** — alle geselecteerde rekeningen in één bestand (geblokkeerd bij > 500.000 regels).
+**Download als 1 Excel** — alle geselecteerde rekeningen in één bestand (geblokkeerd bij > 50.000 regels).
 
 **Download per rekening (losse bestanden)** — downloadt automatisch één Excel per geselecteerde rekening, elk benoemd als `[bestandsnaam]_rek[nummer].xlsx`. De periodefilter wordt meegenomen. Elk bestand bevat een Bedrijfsgegevens-tab (inclusief eventuele beginsaldi-opmerking).
 

@@ -246,7 +246,7 @@
           <span>een <strong>bouwman.tools</strong> product</span>
           <div class="bt-tooltip">Gebouwd door Sylvain Bouwman</div>
         </div>
-        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 11 sep 2026, 10:51</div>
+        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 16 sep 2026, 21:10</div>
       </footer>
 
     </div>
@@ -922,20 +922,34 @@
     }
 
     // ── Excel export ─────────────────────────────────────────────────────
-    // Grens voor het Mutaties-tabblad. SheetJS loopt vast boven ongeveer 15 miljoen
-    // cellen per tabblad. Een mutatierij heeft drieentwintig vaste kolommen (LINE_H),
-    // plus vijf per extra btw-element op de breedste regel van het bestand. Bij
-    // drieentwintig kolommen is 500.000 x 23 = 11,5 miljoen cellen, dus 23,3% onder
-    // die grens; pas vanaf eenendertig kolommen zou 500.000 rijen erboven uitkomen.
-    // De grens is daarom het laagste van 500.000 rijen en het cellenbudget gedeeld
-    // door het gemeten aantal kolommen. Tot en met dertig kolommen verandert er niets.
-    // Doordat een extra btw-element nu vijf kolommen kost in plaats van drie, blijft
-    // dat gelden tot en met twee btw-elementen op de breedste regel (28 kolommen);
-    // bij drie (33 kolommen) zakt de grens naar 454.545 rijen. Dat was voor deze
-    // wijziging tot en met vier elementen. Bij het maximum van negenennegentig
-    // elementen, 513 kolommen, is de grens 29.239 rijen.
-    var ROW_CAP  = 500000;
-    var CELL_CAP = 15000000;
+    // Grens voor het Mutaties-tabblad. Vroeger stond hier een ongemeten aanname dat
+    // SheetJS vastloopt boven ongeveer 15 miljoen cellen per tabblad, overgenomen uit
+    // oudere code. Op 16 september 2026 is dat echt gemeten: in een browser, met
+    // dezelfde SheetJS-versie 0.18.5 als hierboven geladen, met synthetische rijen op
+    // de vorm van LINE_H. Er loopt niets vast op een harde grens in SheetJS zelf — die
+    // bestaat niet, ook niet in de documentatie van de bibliotheek — maar op het
+    // werkgeheugen van het browsertabblad (V8-heapfout, "RangeError: Invalid array
+    // length" tijdens XLSX.write, of "Too many properties to enumerate" bij zeer veel
+    // cellen). Bij 23 kolommen en gangbare tekstlengte in de omschrijvingen lag het
+    // omslagpunt tussen 137.500 rijen (nog goed) en 140.000 rijen (loopt vast) — rond
+    // de 3,2 miljoen cellen, niet 15 miljoen. Bovendien is het geen vaste celgrens:
+    // dezelfde 100.000 rijen die met gangbare tekst wel lukten, liepen alsnog vast
+    // toen drie tekstvelden 200 tekens langer werden. De uitkomst hangt dus af van de
+    // browser en van hoe lang de omschrijvingen in het bestand zelf zijn, niet alleen
+    // van het celaantal. Details en de metingen: update-bram-xaf-export-tool.md, §6.
+    //
+    // Gekozen grens (besluit Sylvain, 16 september 2026): 50.000 rijen bij 23
+    // kolommen, bijna 3x onder het gemeten omslagpunt, als marge voor langere
+    // omschrijvingen dan de testdata en voor zwakkere machines dan de testbrowser.
+    // Zoals voorheen geldt het laagste van ROW_CAP en het cellenbudget gedeeld door
+    // het gemeten aantal kolommen, zodat een bredere regel (meer btw-elementen) een
+    // lagere grens krijgt. Bij 23 kolommen komt dat exact op 50.000 rijen uit; elk
+    // extra btw-element (5 kolommen erbij) verlaagt de grens dus al, in plaats van
+    // pas na twee of vier elementen zoals in de oude berekening. Bij drie
+    // btw-elementen (33 kolommen) is de grens 34.848 rijen, bij het maximum van
+    // negenennegentig elementen (513 kolommen) 2.242 rijen.
+    var ROW_CAP  = 50000;
+    var CELL_CAP = 1150000;
     function mutCap(headers) {
       var cols = Math.max((headers && headers.length) || 0, 1);
       return Math.min(ROW_CAP, Math.floor(CELL_CAP / cols));
