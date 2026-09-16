@@ -201,10 +201,29 @@ hebben gestaan.
   dat de tool de fout bij het schrijven zelf opvangt en dan pas kleiner probeert of naar CSV
   verwijst, in plaats van vooraf op basis van rijen en kolommen te schatten. Dat is een
   grotere wijziging dan deze meting, en ligt hier als voorstel, geen toezegging.
-- **De rijgrens is een afkapping, geen splitsing.** Boven de grens bevat het
-  Mutaties-tabblad de eerste N regels en waarschuwt de tool; de CSV blijft volledig. De
-  vraag of afkappen met waarschuwing hier de juiste keuze is, of dat splitsen over meerdere
-  tabbladen beter past bij het gebruik op jouw platform, ligt open.
+- **Onderzocht op 16 september 2026: de rijgrens is een afkapping, geen splitsing —
+  en dat kan beter.** De 50.000-grens hierboven beperkt uitsluitend de omvang van één
+  Excel-exporteenheid in de huidige SheetJS-opzet; zij raakt nooit het inlezen van de
+  auditfile of de CSV-export, die blijven altijd volledig (`mutCap`/`ROW_CAP`/`CELL_CAP`
+  worden alleen aangeroepen in het Excel-downloadpad, nergens in de leeskern of de
+  CSV-functie). Vervolgens is gemeten of splitsen een groot bestand toch volledig naar
+  Excel kan krijgen. Twee vormen getest, beide met dezelfde 200.000 synthetische regels
+  die als één tabblad al vastlopen:
+  - **Splitsen over meerdere tabbladen in één werkboek** helpt niet. SheetJS schrijft het
+    hele werkboek in één keer weg; het geheugenprobleem zit in die schrijfstap en telt
+    over alle tabbladen samen, dus de vier tabbladen gaven precies dezelfde fout als één
+    groot tabblad.
+  - **Splitsen over meerdere losse bestanden** (elk bestand zijn eigen werkboek en eigen
+    schrijfactie, met een korte pauze ertussen zodat de browser kan opschonen) werkte wel.
+    Getest tot 1.000.000 regels in 20 bestanden van 50.000 regels — geheugengebruik bleef
+    daarbij vlak en liep niet op naarmate er meer bestanden bijkwamen. Dit is dezelfde
+    aanpak die de tool al gebruikt bij "Download per rekening (losse bestanden)", nu
+    toegepast op blokken regels in plaats van op rekeningen.
+  - Conclusie: een zeer grote administratie kan wel degelijk volledig naar Excel, alleen
+    niet als één bestand. Bouwen van "Download in meerdere Excel-bestanden" voor het
+    Mutaties-tabblad boven de 50.000-grens is technisch onderbouwd en ligt als voorstel
+    klaar; niet gebouwd, want dat is een zichtbare gedragswijziging (meerdere downloads in
+    plaats van één) waarover Sylvain eerst beslist.
 - **De subadministratie van XAF 3.2 wordt niet gelezen.** Daar zit onder meer `invDueDt`,
   de enige echte vervaldatum in de standaard. Voor een ouderdomsanalyse op een 3.2-bestand
   zou dat blok nodig zijn. Bewust niet gebouwd, omdat het blok optioneel is en in 4.0
