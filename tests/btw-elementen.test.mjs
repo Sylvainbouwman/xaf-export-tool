@@ -273,21 +273,22 @@ function laadMutCap() {
 
 test('de rijlimiet volgt het cellenbudget en het gemeten aantal kolommen', () => {
   const { mutCap, ROW_CAP, CELL_CAP } = laadMutCap();
-  assert.equal(ROW_CAP, 500000);
-  assert.equal(CELL_CAP, 15000000);
-  // Bij de drieentwintig vaste kolommen blijft de grens ongewijzigd op 500.000.
+  // Gemeten op 16 september 2026 in een echte browser met SheetJS 0.18.5: zie de
+  // toelichting bij ROW_CAP/CELL_CAP in index.html en update-bram-xaf-export-tool.md, §6.
+  assert.equal(ROW_CAP, 50000);
+  assert.equal(CELL_CAP, 1150000);
+  // Bij de drieentwintig vaste kolommen komt de grens exact op 50.000 rijen uit.
   assert.equal(BASIS.length, 23);
-  assert.equal(mutCap(BASIS), 500000);
-  assert.equal(23 * 500000, 11500000, 'dat is 11,5 miljoen cellen, onder het budget');
-  assert.equal(CELL_CAP - 23 * 500000, 3500000, 'de marge is 3,5 miljoen cellen');
-  // Een extra btw-element kost nu vijf kolommen in plaats van drie. Tot en met dertig
-  // kolommen verandert er niets, en dat reikt tot twee btw-elementen (28 kolommen).
-  assert.equal(mutCap(new Array(28)), 500000);
-  assert.equal(mutCap(new Array(30)), 500000);
-  // Daarboven schaalt de grens mee zodat het cellenbudget niet wordt overschreden.
-  assert.equal(mutCap(new Array(31)), 483870);
-  assert.equal(mutCap(new Array(33)), 454545, 'drie btw-elementen: 23 + 5 x 2 kolommen');
-  assert.equal(mutCap(new Array(513)), 29239, 'negenennegentig btw-elementen');
+  assert.equal(mutCap(BASIS), 50000);
+  assert.equal(23 * 50000, 1150000, 'geen marge over bij 23 kolommen: kantelpunt ligt hier');
+  // Een extra btw-element kost vijf kolommen. Anders dan bij de oude, ongemeten grens
+  // verlaagt zelfs het eerste extra element de rijencap al, in plaats van pas na twee
+  // of vier elementen.
+  assert.equal(mutCap(new Array(28)), 41071, 'eerste extra btw-element (28 kolommen)');
+  assert.equal(mutCap(new Array(30)), 38333);
+  assert.equal(mutCap(new Array(31)), 37096);
+  assert.equal(mutCap(new Array(33)), 34848, 'drie btw-elementen: 23 + 5 x 2 kolommen');
+  assert.equal(mutCap(new Array(513)), 2241, 'negenennegentig btw-elementen');
   for (const kolommen of [23, 28, 30, 31, 33, 60, 513]) {
     assert.ok(mutCap(new Array(kolommen)) * kolommen <= CELL_CAP,
       kolommen + ' kolommen blijft binnen het cellenbudget');
