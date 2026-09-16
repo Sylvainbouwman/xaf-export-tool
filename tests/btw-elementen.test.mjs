@@ -294,3 +294,65 @@ test('de rijlimiet volgt het cellenbudget en het gemeten aantal kolommen', () =>
       kolommen + ' kolommen blijft binnen het cellenbudget');
   }
 });
+
+// De gesplitste Excel-export (besluit Sylvain, 16 september 2026: CSV is boven de
+// rijlimiet het advies, Excel blijft als bewuste tweede keuze beschikbaar, dan verdeeld
+// over meerdere bestanden van elk hoogstens mutCap(...) regels). partCount en splitRows
+// staan, net als mutCap, in de hoofdcode; ook hier wordt letterlijk uit index.html
+// gehaald en los gedraaid.
+function laadSplitFuncties() {
+  const html = readFileSync(fileURLToPath(new URL('../index.html', import.meta.url)), 'utf8');
+  const stukken = [
+    /function partCount\(n, cap\) \{[\s\S]*?\n {4}\}/,
+    /function splitRows\(rows, cap\) \{[\s\S]*?\n {4}\}/,
+  ].map(re => {
+    const treffer = html.match(re);
+    assert.ok(treffer, 'declaratie niet gevonden: ' + re);
+    return treffer[0];
+  });
+  const context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
+  vm.runInContext(stukken.join('\n'), context, { timeout: 1000 });
+  return context;
+}
+
+test('partCount rekent het aantal Excel-deelbestanden voorspelbaar uit', () => {
+  const { partCount } = laadSplitFuncties();
+  assert.equal(partCount(0, 50000), 0, 'niets te exporteren is nul bestanden');
+  assert.equal(partCount(1, 50000), 1);
+  assert.equal(partCount(50000, 50000), 1, 'precies op de grens: nog altijd één bestand');
+  assert.equal(partCount(50001, 50000), 2, 'één regel boven de grens: al een tweede bestand');
+  assert.equal(partCount(100000, 50000), 2);
+  assert.equal(partCount(100001, 50000), 3);
+  assert.equal(partCount(1000000, 50000), 20, 'de omvang uit de meting in §6');
+});
+
+test('splitRows verdeelt zonder regels te verliezen, te verdubbelen of te herschikken', () => {
+  const { splitRows } = laadSplitFuncties();
+  const rows = Array.from({ length: 130000 }, (_, i) => ['rij' + i, i]);
+  const cap = 50000;
+  const delen = splitRows(rows, cap);
+
+  assert.equal(delen.length, 3, '130.000 regels bij een grens van 50.000 is drie delen');
+  assert.equal(delen[0].length, 50000);
+  assert.equal(delen[1].length, 50000);
+  assert.equal(delen[2].length, 30000, 'het laatste deel is het restant, geen volle 50.000');
+  for (const deel of delen) assert.ok(deel.length <= cap, 'geen deel overschrijdt de grens');
+
+  // Terug aan elkaar plakken geeft exact de oorspronkelijke rijen terug, in dezelfde
+  // volgorde. Met de hand aaneengeregen (niet .flat()): delen komt uit een vm-context en
+  // een array uit een andere realm geeft bij .flat()/concat vals-negatieve deepEqual-ruis
+  // in Node, zonder dat er werkelijk iets mis is met de gegevens.
+  const terug = [];
+  for (const deel of delen) for (const rij of deel) terug.push(rij);
+  assert.deepEqual(terug, rows);
+});
+
+test('splitRows en partCount komen op hetzelfde aantal delen uit', () => {
+  const { partCount, splitRows } = laadSplitFuncties();
+  const cap = 50000;
+  for (const n of [0, 1, cap - 1, cap, cap + 1, 2 * cap, 2 * cap + 1, 130000, 1000000]) {
+    const rows = new Array(n).fill(0);
+    assert.equal(splitRows(rows, cap).length, partCount(n, cap),
+      n + ' regels: aangekondigd aantal bestanden moet gelijk zijn aan het werkelijke aantal');
+  }
+});

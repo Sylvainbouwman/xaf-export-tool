@@ -121,14 +121,26 @@ De tool is geoptimaliseerd voor bestanden van honderden MB tot meerdere GB:
 
 ### Excel-limieten bij grote bestanden
 
-Het Mutaties-tabblad wordt boven de grens **afgekapt, niet gesplitst**. De CSV blijft
-altijd volledig.
+**Deze grens raakt uitsluitend één Excel-bestand van de huidige SheetJS-export.** Het
+inlezen van de auditfile en de CSV-export kennen geen rijenlimiet en blijven altijd
+volledig, hoe groot het bestand ook is.
 
 | Regels | Gedrag |
 |---|---|
-| ≤ 50.000 | Volledige export naar Excel |
-| > 50.000 | Excel bevat de eerste 50.000 mutatieregels; waarschuwing zichtbaar, analysevenster verschijnt en de melding na de download noemt hoeveel regels zijn weggelaten. Gebruik CSV voor het volledige bestand |
+| ≤ 50.000 | Volledige export naar Excel, ongewijzigd: één .xlsx-bestand |
+| > 50.000 | De tool adviseert eerst CSV (altijd één volledig bestand). Wil de gebruiker toch Excel, dan is dat een bewuste tweede keuze: de export wordt verdeeld over meerdere .xlsx-bestanden van elk maximaal 50.000 mutatieregels |
 | > 1.000.000 | Na CSV-download: tip om Power Query of Power BI te gebruiken |
+
+Boven de 50.000 regels toont de tool een adviesblok: *"Deze export bevat naar
+verwachting … mutatieregels, meer dan de 50.000 die in één Excel-bestand passen. Voor
+grote administraties adviseren we CSV: dat bestand blijft altijd volledig, in één stuk.
+Wilt u toch Excel gebruiken, dan wordt de export verdeeld over … bestanden van maximaal
+50.000 mutatieregels elk."* Kiest de gebruiker toch voor Excel, dan verschijnen de
+deelbestanden achter elkaar als `[bestandsnaam]_deel1_van_N.xlsx`,
+`_deel2_van_N.xlsx`, enzovoort; elk deelbestand bevat dezelfde Bedrijfsgegevens-,
+Grootboekrekeningen-, BTW-codes-, Beginsaldi-, Deb_Cred-, Kolommenbalans- en
+Aansluitcheck-tabbladen als het ongesplitste bestand, alleen het Mutaties-tabblad
+verschilt per deel. Besluit Sylvain, 16 september 2026.
 
 De grens van 50.000 komt niet uit Excel zelf. Tot 16 september 2026 stond hier een
 ongemeten aanname dat SheetJS (de Excel-bibliotheek) vastloopt boven ongeveer vijftien
@@ -142,7 +154,10 @@ alsnog vast met langere tekstvelden. De grens van 50.000 regels is daarom met ru
 marge onder dat gemeten omslagpunt gekozen. Draagt een bestand extra btw-kolommen (zie
 hierboven), dan schuift de grens verder omlaag: bij drie btw-elementen op de breedste
 regel (33 kolommen) is de grens 34.848 regels, bij het maximum van negenennegentig
-elementen (513 kolommen) 2.241 regels. Details en de meetopzet:
+elementen (513 kolommen) 2.241 regels. Ook meerdere tabbladen in één werkboek lossen
+het geheugenprobleem niet op: SheetJS schrijft het hele werkboek in één keer weg, dus
+de winst zit in losse bestanden, niet in extra tabbladen. Getest tot 1.000.000 regels
+in 20 losse bestanden zonder dat het geheugengebruik opliep. Details en de meetopzet:
 `update-bram-xaf-export-tool.md`, §6.
 
 ---

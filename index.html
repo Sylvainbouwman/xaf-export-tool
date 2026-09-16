@@ -81,6 +81,9 @@
     #csvBtn:hover       { background: #054338; box-shadow: 0 2px 10px rgba(6,95,70,.25); }
     #csvBtn:disabled    { background: #94a3b8; cursor: default; box-shadow: none; }
     #export-hint { display: none; margin-top: 10px; font-size: 0.81rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 7px; padding: 8px 12px; }
+    #excel-advies { display: none; margin-top: 10px; padding: 12px 14px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 9px; }
+    #excel-advies p { margin: 0 0 10px; font-size: 0.81rem; color: #92400e; }
+    #excel-advies .btn-row { margin-top: 0; }
     #analyse-wrap { display: none; margin-top: 22px; }
     .lft-header { display: flex; align-items: flex-start; gap: 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; }
     .lft-badge { background: #f59e0b; color: #fff; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
@@ -184,6 +187,13 @@
         <button id="csvBtn">&#8659;&nbsp; Download CSV</button>
       </div>
       <div id="export-hint"></div>
+      <div id="excel-advies">
+        <p id="excel-advies-tekst"></p>
+        <div class="btn-row">
+          <button id="excel-advies-csv" class="lft-btn lft-btn-pri">&#8659;&nbsp; Download CSV</button>
+          <button id="excel-advies-confirm" class="lft-btn lft-btn-sec">Toch Excel gebruiken</button>
+        </div>
+      </div>
 
       <div id="analyse-wrap">
 
@@ -246,7 +256,7 @@
           <span>een <strong>bouwman.tools</strong> product</span>
           <div class="bt-tooltip">Gebouwd door Sylvain Bouwman</div>
         </div>
-        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 16 sep 2026, 21:10</div>
+        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 16 sep 2026, 22:02</div>
       </footer>
 
     </div>
@@ -836,6 +846,9 @@
       // Keep mutaties stat card in sync with selection
       setStatCard('stat-mutaties', fmt(filtered.length),
         filtered.length < total ? 'Geselecteerd' : 'Mutatieregels');
+      // Het adviesblok toonde aantallen bij de vorige periodeselectie; na een wijziging
+      // zijn die niet meer betrouwbaar. Een nieuwe klik op "Download Excel" berekent ze opnieuw.
+      document.getElementById('excel-advies').style.display = 'none';
     }
 
     function filterRows(rows) {
@@ -947,12 +960,27 @@
     // extra btw-element (5 kolommen erbij) verlaagt de grens dus al, in plaats van
     // pas na twee of vier elementen zoals in de oude berekening. Bij drie
     // btw-elementen (33 kolommen) is de grens 34.848 rijen, bij het maximum van
-    // negenennegentig elementen (513 kolommen) 2.242 rijen.
+    // negenennegentig elementen (513 kolommen) 2.241 rijen.
     var ROW_CAP  = 50000;
     var CELL_CAP = 1150000;
     function mutCap(headers) {
       var cols = Math.max((headers && headers.length) || 0, 1);
       return Math.min(ROW_CAP, Math.floor(CELL_CAP / cols));
+    }
+    // Hoeveel Excel-deelbestanden nodig zijn om n mutatieregels te exporteren, bij een
+    // limiet van cap regels per bestand. Puur rekenwerk, gebruikt door zowel de
+    // adviestekst in de exportBtn-klikhandler als door splitRows() hieronder — zodat het
+    // aangekondigde aantal bestanden altijd overeenkomt met het aantal dat werkelijk wordt
+    // gedownload.
+    function partCount(n, cap) {
+      return n > 0 ? Math.ceil(n / cap) : 0;
+    }
+    // Verdeelt rows in opeenvolgende stukken van elk maximaal cap regels, zonder regels
+    // over te slaan, te dupliceren of van volgorde te wisselen.
+    function splitRows(rows, cap) {
+      var chunks = [];
+      for (var i = 0; i < rows.length; i += cap) chunks.push(rows.slice(i, i + cap));
+      return chunks;
     }
     var IDX_PERIOD = 5;      // tx_periodNumber column index in rows
     var IDX_BEDRAG = 15;     // 'Bedrag' (signed) kolom index in rows
@@ -1042,6 +1070,49 @@
       });
     }
 
+    // Bedrijfsgegevens, Grootboekrekeningen, BTW-codes, Beginsaldi, Deb_Cred en
+    // Kolommenbalans zijn onafhankelijk van het aantal mutatieregels (begrensd door het
+    // aantal rekeningen/btw-codes, niet door de omvang van het journaal) en komen daarom
+    // ongewijzigd terug in elk deelbestand van buildExcelSplit.
+    function addContextSheets(wb, data, kbSorted) {
+      var bedrijfData = data.obsInFile ? data.bedrijf
+        : data.bedrijf.concat([['Beginsaldi', 'Niet opgenomen in auditfile']]);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bedrijfData), 'Bedrijfsgegevens');
+      addSheet(wb, 'Grootboekrekeningen', data.accs[0], sortByAcc(data.accs.slice(1), 0));
+      addSheet(wb, 'BTW-codes',           data.vats[0], sortByAcc(data.vats.slice(1), 0));
+      if (!data.obsInFile) {
+        addSheet(wb, 'Beginsaldi', ['Opmerking'], [['Beginsaldi zijn niet opgenomen in deze auditfile']]);
+      } else {
+        addSheet(wb, 'Beginsaldi', data.obs[0], sortByAcc(data.obs.slice(1), 1));
+      }
+      if (data.custSups && data.custSups.length > 1)
+        addSheet(wb, 'Deb_Cred', data.custSups[0], sortByAcc(data.custSups.slice(1), 0));
+      addSheet(wb, 'Kolommenbalans', kbH, kbSorted);
+    }
+
+    // ac komt van computeAansluitcheck(data.rows) — altijd over alle regels, ongeacht
+    // periodefilter, en gelijk voor elk deelbestand van buildExcelSplit.
+    function addAansluitcheckSheet(wb, ac) {
+      if (ac.unbalanced.length === 0) return;
+      var acRows = [];
+      acRows.push(['Bestandsniveau', '', '', '', '', '', ac.totalDeb, ac.totalCrd, Math.round((ac.totalDeb - ac.totalCrd) * 100) / 100]);
+      acRows.push(['', '', '', '', '', '', '', '', '']);
+      var ubMax = Math.min(ac.unbalanced.length, 50000);
+      acRows.push(['--- ' + ac.unbalanced.length + ' transacties niet in balans' + (ubMax < ac.unbalanced.length ? ' (eerste ' + fmt(ubMax) + ' getoond)' : '') + ' ---', '', '', '', '', '', '', '', '']);
+      acRows = acRows.concat(ac.unbalanced.slice(0, ubMax));
+      addSheet(wb, 'Aansluitcheck',
+        ['Niveau','Journaal omschrijving','Journaal type','Transactie nr.','Transactie omschrijving','Datum','Debet','Credit','Verschil'],
+        acRows);
+    }
+
+    // Eén Excel-bestand met alle mutatieregels. Wordt alleen aangeroepen nadat de
+    // aanroeper (exportBtn) zelf al heeft gecontroleerd dat filterRows(data.rows).length
+    // binnen mutCap(data.lineH) valt — zie de toelichting bij ROW_CAP/CELL_CAP hierboven
+    // en het besluit van Sylvain (16 september 2026) om boven die grens niet meer stil af
+    // te kappen, maar eerst CSV te adviseren en Excel alleen gesplitst aan te bieden
+    // (buildExcelSplit). De afkapping hieronder blijft als laatste vangnet staan voor het
+    // geval deze functie ooit direct met te veel regels wordt aangeroepen; in de normale
+    // werking van de tool wordt zij niet bereikt.
     function buildExcel(data, baseName) {
       var filteredRows = filterRows(data.rows);
       var cap          = mutCap(data.lineH);
@@ -1056,41 +1127,14 @@
       setTimeout(function() {
         try {
           var wb = XLSX.utils.book_new();
-
-          var bedrijfData = data.obsInFile ? data.bedrijf
-            : data.bedrijf.concat([['Beginsaldi', 'Niet opgenomen in auditfile']]);
-          var wsBedrijf = XLSX.utils.aoa_to_sheet(bedrijfData);
-          XLSX.utils.book_append_sheet(wb, wsBedrijf, 'Bedrijfsgegevens');
-
-          addSheet(wb, 'Grootboekrekeningen', data.accs[0], sortByAcc(data.accs.slice(1), 0));
-          addSheet(wb, 'BTW-codes',           data.vats[0], sortByAcc(data.vats.slice(1), 0));
-          if (!data.obsInFile) {
-            addSheet(wb, 'Beginsaldi', ['Opmerking'], [['Beginsaldi zijn niet opgenomen in deze auditfile']]);
-          } else {
-            addSheet(wb, 'Beginsaldi', data.obs[0], sortByAcc(data.obs.slice(1), 1));
-          }
-          if (data.custSups && data.custSups.length > 1)
-            addSheet(wb, 'Deb_Cred',          data.custSups[0], sortByAcc(data.custSups.slice(1), 0));
           var kbRows   = buildKolommenbalans(data.accs, data.obs, filteredRows);
           var kbTotaal = kbRows[kbRows.length - 1]; // TOTAAL-rij blijft onderaan
           var kbSorted = sortByAcc(kbRows.slice(0, -1), 0);
           kbSorted.push(kbTotaal);
-          addSheet(wb, 'Kolommenbalans',      kbH,              kbSorted);
-          addSheet(wb, 'Mutaties',            data.lineH,       mutRows);
-
+          addContextSheets(wb, data, kbSorted);
+          addSheet(wb, 'Mutaties', data.lineH, mutRows);
           // Aansluitcheck always over ALL rows (period filter doesn't hide errors)
-          var ac = computeAansluitcheck(data.rows);
-          if (ac.unbalanced.length > 0) {
-            var acRows = [];
-            acRows.push(['Bestandsniveau', '', '', '', '', '', ac.totalDeb, ac.totalCrd, Math.round((ac.totalDeb - ac.totalCrd) * 100) / 100]);
-            acRows.push(['', '', '', '', '', '', '', '', '']);
-            var ubMax = Math.min(ac.unbalanced.length, 50000);
-            acRows.push(['--- ' + ac.unbalanced.length + ' transacties niet in balans' + (ubMax < ac.unbalanced.length ? ' (eerste ' + fmt(ubMax) + ' getoond)' : '') + ' ---', '', '', '', '', '', '', '', '']);
-            acRows = acRows.concat(ac.unbalanced.slice(0, ubMax));
-            addSheet(wb, 'Aansluitcheck',
-              ['Niveau','Journaal omschrijving','Journaal type','Transactie nr.','Transactie omschrijving','Datum','Debet','Credit','Verschil'],
-              acRows);
-          }
+          addAansluitcheckSheet(wb, computeAansluitcheck(data.rows));
 
           XLSX.writeFile(wb, baseName + '_raw.xlsx');
           setStatus(isTruncated
@@ -1101,6 +1145,54 @@
         }
         exportBtn.disabled = false;
       }, 50);
+    }
+
+    // Excel boven de rijgrens: bewuste tweede keuze van de gebruiker (zie het adviesblok
+    // #excel-advies), verdeeld over meerdere bestanden van elk maximaal mutCap(data.lineH)
+    // mutatieregels. Elk deelbestand krijgt dezelfde Bedrijfsgegevens/Grootboekrekeningen/
+    // BTW-codes/Beginsaldi/Deb_Cred/Kolommenbalans/Aansluitcheck-tabbladen als het
+    // ongesplitste bestand, en alleen het Mutaties-tabblad verschilt per deel. Sequentieel
+    // met een korte pauze tussen de bestanden (zoals "Download per rekening" al deed), zodat
+    // de browser tussendoor kan opschonen — empirisch getest tot 1.000.000 regels zonder dat
+    // het geheugengebruik opliep (update-bram-xaf-export-tool.md, §6).
+    function buildExcelSplit(data, baseName) {
+      var filteredRows = filterRows(data.rows);
+      var cap          = mutCap(data.lineH);
+      var parts        = splitRows(filteredRows, cap);
+      var totalParts   = parts.length;
+      var kbRows       = buildKolommenbalans(data.accs, data.obs, filteredRows);
+      var kbTotaal     = kbRows[kbRows.length - 1];
+      var kbSorted     = sortByAcc(kbRows.slice(0, -1), 0);
+      kbSorted.push(kbTotaal);
+      var ac = computeAansluitcheck(data.rows); // eenmalig; onafhankelijk van het deel
+
+      exportBtn.disabled = true;
+      var idx = 0;
+      function next() {
+        if (idx >= totalParts) {
+          setStatus('Klaar — ' + fmt(filteredRows.length) + ' regels in ' + totalParts + ' Excel-bestand(en) gedownload.', 'ok');
+          exportBtn.disabled = false;
+          return;
+        }
+        var partNr  = idx + 1;
+        var mutRows = parts[idx];
+        setStatus('Excel deel ' + partNr + '/' + totalParts + ' genereren (' + fmt(mutRows.length) + ' regels)…');
+        setTimeout(function() {
+          try {
+            var wb = XLSX.utils.book_new();
+            addContextSheets(wb, data, kbSorted);
+            addSheet(wb, 'Mutaties', data.lineH, mutRows);
+            addAansluitcheckSheet(wb, ac);
+            XLSX.writeFile(wb, baseName + '_deel' + partNr + '_van_' + totalParts + '.xlsx');
+            idx++;
+            setTimeout(next, 600);
+          } catch (ex) {
+            setStatus('Excel fout in deel ' + partNr + ': ' + ex.message, 'err');
+            exportBtn.disabled = false;
+          }
+        }, 50);
+      }
+      next();
     }
 
     // ── Drag & drop ───────────────────────────────────────────────────────
@@ -1147,6 +1239,7 @@
       document.getElementById('periode-checks').innerHTML        = '';
       document.getElementById('periode-count').textContent       = '';
       document.getElementById('export-hint').style.display      = 'none';
+      document.getElementById('excel-advies').style.display     = 'none';
       document.getElementById('obs-warning').style.display      = 'none';
       document.getElementById('analyse-wrap').style.display     = 'none';
       document.getElementById('acc-picker').innerHTML            = '';
@@ -1198,9 +1291,10 @@
             document.getElementById('obs-warning').style.display = 'none';
             document.getElementById('kb-hint').textContent = 'Rekeningen + beginsaldi + saldo\'s — altijd klein en snel';
           }
-          // De Mutaties-tab wordt boven de grens afgekapt, niet gesplitst; het label zegt dat ook.
+          // Boven de grens adviseert de tool CSV; Excel kan dan nog, gesplitst over
+          // meerdere bestanden (zie exportBtn-klikhandler en buildExcelSplit).
           var cap = mutCap(msg.lineH);
-          var mutLbl = nLines > cap * 4 ? 'regels (gebruik CSV!)' : nLines > cap ? 'regels (Excel beperkt)' : 'Mutatieregels';
+          var mutLbl = nLines > cap ? 'regels (CSV geadviseerd)' : 'Mutatieregels';
           setStatCard('stat-mutaties', fmt(nLines), mutLbl);
           setStatCard('stat-btw', fmt(msg.vats.length - 1));
           if (nCs > 0) {
@@ -1234,7 +1328,7 @@
 
           var hintEl = document.getElementById('export-hint');
           if (nLines > cap) {
-            hintEl.innerHTML = '&#9888;&nbsp; <strong>Excel</strong> bevat max. ' + fmt(cap) + ' van ' + fmt(nLines) + ' mutatieregels. Download <strong>CSV</strong> voor het volledige bestand.';
+            hintEl.innerHTML = '&#9888;&nbsp; Meer dan ' + fmt(cap) + ' mutatieregels: we adviseren <strong>CSV</strong> (altijd één volledig bestand). <strong>Excel</strong> kan ook, dan verdeeld over meerdere bestanden.';
             hintEl.style.display = 'block';
           } else {
             hintEl.style.display = 'none';
@@ -1560,9 +1654,39 @@
       next();
     });
 
+    // Boven de rijgrens is CSV het advies; Excel blijft beschikbaar als bewuste tweede
+    // keuze, dan verdeeld over meerdere bestanden (buildExcelSplit). Besluit Sylvain,
+    // 16 september 2026 — zie README, "Excel-limieten bij grote bestanden".
+    var excelAdviesEl = document.getElementById('excel-advies');
     exportBtn.addEventListener('click', function() {
       if (!parsed) return;
+      var n   = filterRows(parsed.rows).length;
+      var cap = mutCap(parsed.lineH);
+      if (n > cap) {
+        var delen = partCount(n, cap);
+        document.getElementById('excel-advies-tekst').textContent =
+          'Deze export bevat naar verwachting ' + fmt(n) + ' mutatieregels, meer dan de ' +
+          fmt(cap) + ' die in één Excel-bestand passen. Voor grote administraties adviseren ' +
+          'we CSV: dat bestand blijft altijd volledig, in één stuk. Wilt u toch Excel ' +
+          'gebruiken, dan wordt de export verdeeld over ' + delen + ' bestanden van ' +
+          'maximaal ' + fmt(cap) + ' mutatieregels elk.';
+        excelAdviesEl.style.display = 'block';
+        return;
+      }
+      excelAdviesEl.style.display = 'none';
       buildExcel(parsed, fileName);
+    });
+
+    document.getElementById('excel-advies-csv').addEventListener('click', function() {
+      excelAdviesEl.style.display = 'none';
+      if (!parsed) return;
+      downloadCSV(parsed, fileName);
+    });
+
+    document.getElementById('excel-advies-confirm').addEventListener('click', function() {
+      excelAdviesEl.style.display = 'none';
+      if (!parsed) return;
+      buildExcelSplit(parsed, fileName);
     });
 
     csvBtn.addEventListener('click', function() {
