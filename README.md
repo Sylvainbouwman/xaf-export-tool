@@ -125,46 +125,70 @@ De tool is geoptimaliseerd voor bestanden van honderden MB tot meerdere GB:
 inlezen van de auditfile en de CSV-export kennen geen rijenlimiet en blijven altijd
 volledig, hoe groot het bestand ook is.
 
-| Regels | Gedrag |
+De grens is geen vast aantal regels. Zij rekent in **tekens**: de tool telt (bij een
+gematigd aantal regels volledig, anders op een steekproef) hoeveel tekens de
+mutatieregels die daadwerkelijk geëxporteerd worden werkelijk bevatten, en zet dat af
+tegen een vast tekenbudget van 12.000.000 tekens per Excel-bestand. Een bestand met
+korte omschrijvingen krijgt zo vanzelf meer regels per Excel-bestand, een bestand met
+lange omschrijvingen minder. Bij de tekstlengte uit de meting (± 252 tekens per regel)
+komt dat neer op ongeveer 47.600 regels — in dezelfde orde als de eerdere, inmiddels
+vervangen vaste grens van 50.000.
+
+| Regels (geschat op basis van de werkelijke tekstinhoud) | Gedrag |
 |---|---|
-| ≤ 50.000 | Volledige export naar Excel, ongewijzigd: één .xlsx-bestand |
-| > 50.000 | De tool adviseert eerst CSV (altijd één volledig bestand). Wil de gebruiker toch Excel, dan is dat een bewuste tweede keuze: de export wordt verdeeld over meerdere .xlsx-bestanden van elk maximaal 50.000 mutatieregels |
+| Past binnen het tekenbudget | Volledige export naar Excel, ongewijzigd: één .xlsx-bestand |
+| Boven het tekenbudget | De tool adviseert eerst CSV (altijd één volledig bestand). Wil de gebruiker toch Excel, dan is dat een bewuste tweede keuze: de export wordt verdeeld over meerdere .xlsx-bestanden |
 | > 1.000.000 | Na CSV-download: tip om Power Query of Power BI te gebruiken |
 
-Boven de 50.000 regels toont de tool een adviesblok: *"Deze export bevat naar
-verwachting … mutatieregels, meer dan de 50.000 die in één Excel-bestand passen. Voor
-grote administraties adviseren we CSV: dat bestand blijft altijd volledig, in één stuk.
-Wilt u toch Excel gebruiken, dan wordt de export verdeeld over … bestanden van maximaal
-50.000 mutatieregels elk."* Kiest de gebruiker toch voor Excel, dan verschijnen de
-deelbestanden achter elkaar als `[bestandsnaam]_deel1_van_N.xlsx`,
-`_deel2_van_N.xlsx`, enzovoort; elk deelbestand bevat dezelfde Bedrijfsgegevens-,
-Grootboekrekeningen-, BTW-codes-, Beginsaldi-, Deb_Cred-, Kolommenbalans- en
-Aansluitcheck-tabbladen als het ongesplitste bestand, alleen het Mutaties-tabblad
-verschilt per deel. Besluit Sylvain, 16 september 2026.
+Boven het tekenbudget toont de tool een adviesblok, met de werkelijke aantallen voor
+dít bestand ingevuld: *"Deze export bevat naar verwachting … mutatieregels, meer dan
+de … die naar schatting in één Excel-bestand passen. Voor grote administraties
+adviseren we CSV: dat bestand blijft altijd volledig, in één stuk. Wilt u toch Excel
+gebruiken, dan wordt de export verdeeld over naar schatting … bestanden van ongeveer …
+mutatieregels elk — bij te weinig geheugen op uw computer maakt de tool onderweg
+kleinere bestanden."* Kiest de gebruiker toch voor Excel, dan verschijnen de
+deelbestanden achter elkaar als `[bestandsnaam]_deel1.xlsx`, `_deel2.xlsx`, enzovoort
+(zonder aangekondigd totaal, want dat kan tijdens het exporteren nog veranderen — zie
+hieronder); elk deelbestand bevat dezelfde Bedrijfsgegevens-, Grootboekrekeningen-,
+BTW-codes-, Beginsaldi-, Deb_Cred-, Kolommenbalans- en Aansluitcheck-tabbladen als het
+ongesplitste bestand, alleen het Mutaties-tabblad verschilt per deel.
 
-De grens van 50.000 komt niet uit Excel zelf. Tot 16 september 2026 stond hier een
+**Terugval tijdens het exporteren.** Lukt het schrijven van een deelbestand toch niet
+(een computer met minder werkgeheugen dan waarop dit gemeten is, of tekst die nog veel
+langer is dan gemeten), dan vangt de tool die fout op, halveert de omvang van dát ene
+deel en probeert opnieuw — tot een ondergrens van 500 regels. Een eenmaal verkleinde
+omvang blijft ook voor de volgende delen gelden. Zo past de grens zich tijdens de
+export aan de machine van de gebruiker aan, in plaats van vooraf op de testbrowser te
+gokken. Besluit Sylvain, 16 september 2026.
+
+Deze grens komt niet uit Excel zelf. Tot 16 september 2026 stond hier eerst een
 ongemeten aanname dat SheetJS (de Excel-bibliotheek) vastloopt boven ongeveer vijftien
-miljoen cellen per tabblad. Dat is toen echt gemeten, in een browser, met dezelfde
-SheetJS-versie als de tool gebruikt: er is geen harde celgrens in SheetJS, de export
+miljoen cellen per tabblad, en na een eerste meting diezelfde dag een vaste grens van
+50.000 regels bij 23 kolommen. Beide bleken niet te kloppen. Gemeten (browser, dezelfde
+SheetJS-versie als de tool gebruikt): er is geen harde celgrens in SheetJS, de export
 loopt vast op het werkgeheugen van het browsertabblad, en dat gebeurde bij 23 kolommen
-en gangbare tekstlengte al rond de **3,2 miljoen cellen** (tussen 137.500 en 140.000
-regels) — niet bij 15 miljoen. De uitkomst hangt ook af van hoe lang de omschrijvingen
-in het bestand zijn: dezelfde 100.000 regels die met gangbare tekst wel lukten, liepen
-alsnog vast met langere tekstvelden. De grens van 50.000 regels is daarom met ruime
-marge onder dat gemeten omslagpunt gekozen. Draagt een bestand extra btw-kolommen (zie
-hierboven), dan schuift de grens verder omlaag: bij drie btw-elementen op de breedste
-regel (33 kolommen) is de grens 34.848 regels, bij het maximum van negenennegentig
-elementen (513 kolommen) 2.241 regels. Ook meerdere tabbladen in één werkboek lossen
-het geheugenprobleem niet op: SheetJS schrijft het hele werkboek in één keer weg, dus
-de winst zit in losse bestanden, niet in extra tabbladen. Getest tot 1.000.000 regels
-in 20 losse bestanden zonder dat het geheugengebruik opliep. Details en de meetopzet:
-`update-bram-xaf-export-tool.md`, §6.
+en gangbare tekstlengte al rond de 3,2 miljoen cellen (tussen 137.500 en 140.000
+regels) — niet bij 15 miljoen. Maar het celaantal zelf bleek geen betrouwbare
+voorspeller: bij 33 kolommen (2 extra, korte en numerieke btw-kolommen) haalde de tool
+137.500 regels probleemloos, met méér cellen dan de 140.000-regelsgrens bij 23 kolommen
+die al vastliep. Nagerekend op het werkelijke aantal tekens kwamen beide 137.500-
+regelsgevallen (23 én 33 kolommen, allebei goed) vrijwel op hetzelfde totaal uit
+(≈ 34,63 miljoen tekens), tegenover de 140.000-regelsgrens (fout, ≈ 35,26 miljoen
+tekens) net erboven. Tekens voorspellen het omslagpunt dus wél consistent, cellen niet.
+Ook los daarvan hangt de uitkomst af van hoe lang de omschrijvingen in het bestand
+zijn: dezelfde 100.000 regels die met gangbare tekst wel lukten, liepen alsnog vast
+toen drie tekstvelden 200 tekens langer werden gemaakt. Het tekenbudget van 12.000.000
+staat met bijna 3x marge onder het gemeten omslagpunt van ~35 miljoen tekens. Ook
+meerdere tabbladen in één werkboek lossen het geheugenprobleem niet op: SheetJS
+schrijft het hele werkboek in één keer weg, dus de winst zit in losse bestanden, niet
+in extra tabbladen. Getest tot 1.000.000 regels in 20 losse bestanden zonder dat het
+geheugengebruik opliep. Details en de volledige meetopzet: `update-bram-xaf-export-tool.md`, §2.7.
 
 ---
 
 ## Analysevenster (verschijnt automatisch bij grote bestanden)
 
-Bij meer dan 50.000 mutatieregels verschijnt onder de downloadknoppen automatisch een analysevenster met twee secties.
+Bij meer mutatieregels dan het tekenbudget van het Mutaties-tabblad toelaat (zie hierboven) verschijnt onder de downloadknoppen automatisch een analysevenster met twee secties.
 
 ### Samenvatting
 
@@ -182,7 +206,7 @@ Maak een gerichte selectie en download alleen wat je nodig hebt:
 
 Direct zichtbaar: een mini-kolommenbalans per rekening met beg.saldo, mutaties debet/credit, eindsaldo en **saldo**, gevolgd door een preview van de eerste 10 mutatieregels.
 
-**Download als 1 Excel** — alle geselecteerde rekeningen in één bestand (geblokkeerd bij > 50.000 regels).
+**Download als 1 Excel** — alle geselecteerde rekeningen in één bestand (geblokkeerd als de selectie boven het tekenbudget van het Mutaties-tabblad uitkomt; voeg dan minder rekeningen toe).
 
 **Download per rekening (losse bestanden)** — downloadt automatisch één Excel per geselecteerde rekening, elk benoemd als `[bestandsnaam]_rek[nummer].xlsx`. De periodefilter wordt meegenomen. Elk bestand bevat een Bedrijfsgegevens-tab (inclusief eventuele beginsaldi-opmerking).
 
