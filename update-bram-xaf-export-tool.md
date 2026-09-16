@@ -103,18 +103,49 @@ werkelijk staat, desnoods niets, en `BTW-bedrag getekend` blijft dan leeg. Stil 
 meetellen zou een creditbedrag laten optellen alsof het debet was, en juist dat moeten deze
 kolommen voorkomen.
 
-### 2.5 Gevolg voor de rijgrens in Excel (herzien op 16 september 2026, zie §6)
+### 2.5 De rijgrens in Excel opnieuw gemeten (16 september 2026, zie §6)
 
-Het Mutaties-tabblad wordt boven een grens afgekapt, niet gesplitst; de CSV blijft altijd
-volledig. Tot 16 september 2026 stond hier dat de grens 500.000 rijen was, afgeleid van
-een aanname dat SheetJS boven ongeveer vijftien miljoen cellen per tabblad vastloopt. Die
-aanname is inmiddels gemeten en bleek onjuist — zie §6 voor de meting. De grens is nu
-50.000 rijen bij de basis van 23 kolommen, met dezelfde rekenwijze als voorheen: het
-laagste van een vast aantal rijen (ROW_CAP) en een cellenbudget (CELL_CAP) gedeeld door het
-gemeten aantal kolommen. Omdat het cellenbudget nu op 1.150.000 staat (23 × 50.000), verlaagt
-elk extra btw-element de grens al meteen, in plaats van pas na twee of vier elementen zoals
-voorheen: bij drie btw-elementen op de breedste regel (33 kolommen) is de grens 34.848 rijen,
-bij het theoretische maximum van 99 elementen (513 kolommen) 2.241 rijen.
+De grens waarboven het Mutaties-tabblad niet meer in één Excel-bestand past, stond tot
+16 september 2026 op 500.000 rijen, afgeleid van een aanname dat SheetJS boven ongeveer
+vijftien miljoen cellen per tabblad vastloopt. Die aanname is gemeten en bleek onjuist —
+zie §6. De grens is nu 50.000 rijen bij de basis van 23 kolommen, met dezelfde rekenwijze
+als voorheen: het laagste van een vast aantal rijen (ROW_CAP) en een cellenbudget
+(CELL_CAP) gedeeld door het gemeten aantal kolommen. Omdat het cellenbudget nu op
+1.150.000 staat (23 × 50.000), verlaagt elk extra btw-element de grens al meteen, in
+plaats van pas na twee of vier elementen zoals voorheen: bij drie btw-elementen op de
+breedste regel (33 kolommen) is de grens 34.848 rijen, bij het theoretische maximum van
+99 elementen (513 kolommen) 2.241 rijen.
+
+### 2.6 Boven de rijgrens: CSV geadviseerd, Excel gesplitst als bewuste tweede keuze (16 september 2026)
+
+Vervolg op 2.5, op verzoek van Sylvain. Twee uitgangspunten die hij expliciet heeft
+vastgelegd: de 50.000-grens raakt uitsluitend één Excel-exportbestand van de huidige
+SheetJS-opzet, nooit het inlezen van de auditfile of de CSV-export (die blijven altijd
+volledig, ook boven de grens); en het opsplitsen van een groot bestand mag niet
+automatisch gebeuren zodra de grens wordt overschreden.
+
+Het gedrag boven 50.000 mutatieregels is daarom:
+
+1. De knop **Download Excel** downloadt niet meteen, maar toont een adviesblok met het
+   werkelijke aantal regels, de grens en het aantal bestanden dat Excel nodig zou hebben.
+2. Klikt de gebruiker op **Download CSV** in dat adviesblok, dan krijgt hij het volledige
+   bestand in één stuk — de aanbevolen route.
+3. Klikt hij op **Toch Excel gebruiken**, dan wordt de export alsnog gemaakt, verdeeld
+   over meerdere `.xlsx`-bestanden van elk maximaal 50.000 mutatieregels
+   (`[bestandsnaam]_deel1_van_N.xlsx`, `_deel2_van_N.xlsx`, …). Elk deelbestand krijgt
+   dezelfde Bedrijfsgegevens-, Grootboekrekeningen-, BTW-codes-, Beginsaldi-, Deb_Cred-,
+   Kolommenbalans- en Aansluitcheck-tabbladen als het ongesplitste bestand; alleen het
+   Mutaties-tabblad verschilt per deel.
+4. Onder de 50.000 regels verandert er niets: één druk op **Download Excel** geeft
+   meteen één bestand, zoals altijd.
+
+Waarom niet gewoon meerdere tabbladen in één werkboek? Dat is eerst gemeten en bleek
+geen oplossing: SheetJS schrijft het hele werkboek in één keer weg, dus het
+geheugenprobleem van §6 geldt over alle tabbladen samen. Alleen losse bestanden, elk met
+hun eigen schrijfactie en een korte pauze ertussen, houden het geheugengebruik laag —
+getest tot 1.000.000 regels in 20 bestanden, zonder dat het opliep. Dit is dezelfde
+aanpak die "Download per rekening (losse bestanden)" al gebruikte, nu toegepast op
+blokken regels in plaats van op rekeningen.
 
 ## 3. Bronnen en conclusies
 
@@ -133,16 +164,20 @@ De rekenkern wordt getest zoals hij in de tool draait: de tests halen het worker
 plaats van bestanden. Alle XAF-fragmenten in de tests zijn verzonnen; er zit geen
 klantmateriaal in.
 
-Gemeten op 16 september 2026 om 18:15 CEST, met node v24.14.0:
+Gemeten op 16 september 2026, met node v24.14.0:
 
 ```
-node --test tests/*.test.mjs   ->   tests 36, pass 36, fail 0
+node --test tests/*.test.mjs   ->   tests 39, pass 39, fail 0
 ```
 
 Twee bestanden: `tests/xml-text.test.mjs` voor de tekstverwerking (entiteiten, CDATA,
 tagherkenning, en het uitdrukkelijke geval dat een DTD nooit wordt uitgevoerd, plus een test
 die journaalachtige CDATA over elke mogelijke bytegrens knipt) en `tests/btw-elementen.test.mjs`
-voor de btw-kolommen.
+voor de btw-kolommen, de rijgrens (mutCap) en, sinds vandaag, de gesplitste Excel-export:
+`partCount` en `splitRows` worden — net als `mutCap` — letterlijk uit `index.html` gehaald en
+los gedraaid, met tests op het aantal deelbestanden bij ronde en net-over-de-grens aantallen,
+en op het feit dat samenvoegen van de delen exact de oorspronkelijke rijen teruggeeft, in
+dezelfde volgorde, zonder verlies of duplicatie.
 
 Beide reparaties zijn eerst als falende test vastgelegd. Tegen de code van vóór de wijziging
 faalde `tests/btw-elementen.test.mjs` met 14 van de 17 gevallen, waaronder alle vier de
@@ -193,37 +228,21 @@ hebben gestaan.
   nieuwe grens van 50.000 regels bij 23 kolommen gekozen — ruim (bijna 3×) onder het gemeten
   omslagpunt, als marge voor langere omschrijvingen dan de testdata en voor computers met
   minder werkgeheugen dan de testbrowser. Vastgelegd in `index.html` (ROW_CAP/CELL_CAP) en
-  in de README; zie §2.5 voor het effect op de rijgrenzen bij meerdere btw-elementen. Wat
-  na deze meting nog openligt: de grens is nog steeds één vaste waarde die niet meekijkt
-  naar de werkelijke tekstlengte in een specifiek bestand. Een bestand met ongewoon lange
-  omschrijvingen kan in theorie nog steeds vastlopen ver onder 50.000 regels, en een bestand
-  met korte, uniforme velden zou juist veel meer regels aankunnen. Dat vangen zou vereisen
-  dat de tool de fout bij het schrijven zelf opvangt en dan pas kleiner probeert of naar CSV
-  verwijst, in plaats van vooraf op basis van rijen en kolommen te schatten. Dat is een
-  grotere wijziging dan deze meting, en ligt hier als voorstel, geen toezegging.
-- **Onderzocht op 16 september 2026: de rijgrens is een afkapping, geen splitsing —
-  en dat kan beter.** De 50.000-grens hierboven beperkt uitsluitend de omvang van één
-  Excel-exporteenheid in de huidige SheetJS-opzet; zij raakt nooit het inlezen van de
-  auditfile of de CSV-export, die blijven altijd volledig (`mutCap`/`ROW_CAP`/`CELL_CAP`
-  worden alleen aangeroepen in het Excel-downloadpad, nergens in de leeskern of de
-  CSV-functie). Vervolgens is gemeten of splitsen een groot bestand toch volledig naar
-  Excel kan krijgen. Twee vormen getest, beide met dezelfde 200.000 synthetische regels
-  die als één tabblad al vastlopen:
-  - **Splitsen over meerdere tabbladen in één werkboek** helpt niet. SheetJS schrijft het
-    hele werkboek in één keer weg; het geheugenprobleem zit in die schrijfstap en telt
-    over alle tabbladen samen, dus de vier tabbladen gaven precies dezelfde fout als één
-    groot tabblad.
-  - **Splitsen over meerdere losse bestanden** (elk bestand zijn eigen werkboek en eigen
-    schrijfactie, met een korte pauze ertussen zodat de browser kan opschonen) werkte wel.
-    Getest tot 1.000.000 regels in 20 bestanden van 50.000 regels — geheugengebruik bleef
-    daarbij vlak en liep niet op naarmate er meer bestanden bijkwamen. Dit is dezelfde
-    aanpak die de tool al gebruikt bij "Download per rekening (losse bestanden)", nu
-    toegepast op blokken regels in plaats van op rekeningen.
-  - Conclusie: een zeer grote administratie kan wel degelijk volledig naar Excel, alleen
-    niet als één bestand. Bouwen van "Download in meerdere Excel-bestanden" voor het
-    Mutaties-tabblad boven de 50.000-grens is technisch onderbouwd en ligt als voorstel
-    klaar; niet gebouwd, want dat is een zichtbare gedragswijziging (meerdere downloads in
-    plaats van één) waarover Sylvain eerst beslist.
+  in de README; zie §2.5 voor het effect op de rijgrenzen bij meerdere btw-elementen.
+- **Opgelost op 16 september 2026: de rijgrens was een afkapping, geen splitsing.** Eerst
+  onderzocht (meerdere tabbladen in één werkboek: geen verbetering, want SheetJS schrijft
+  het hele werkboek in één keer weg; meerdere losse bestanden: werkt wel, getest tot
+  1.000.000 regels zonder dat het geheugengebruik opliep), daarna op verzoek van Sylvain
+  gebouwd. Boven de 50.000-grens adviseert de tool nu eerst CSV; kiest de gebruiker
+  bewust voor Excel, dan volgt de gesplitste export. Zie §2.6.
+- **Nog open: de grens is nog steeds één vaste waarde die niet meekijkt naar de
+  werkelijke tekstlengte in een specifiek bestand.** Een bestand met ongewoon lange
+  omschrijvingen kan in theorie nog steeds vastlopen ver onder 50.000 regels per
+  Excel-deelbestand, en een bestand met korte, uniforme velden zou juist veel meer regels
+  per deel aankunnen. Dat vangen zou vereisen dat de tool de fout bij het schrijven zelf
+  opvangt en dan pas kleiner probeert, in plaats van vooraf op basis van rijen en kolommen
+  te schatten. Dat is een grotere wijziging dan deze ronde, en ligt hier als voorstel, geen
+  toezegging.
 - **De subadministratie van XAF 3.2 wordt niet gelezen.** Daar zit onder meer `invDueDt`,
   de enige echte vervaldatum in de standaard. Voor een ouderdomsanalyse op een 3.2-bestand
   zou dat blok nodig zijn. Bewust niet gebouwd, omdat het blok optioneel is en in 4.0
