@@ -147,6 +147,55 @@ getest tot 1.000.000 regels in 20 bestanden, zonder dat het opliep. Dit is dezel
 aanpak die "Download per rekening (losse bestanden)" al gebruikte, nu toegepast op
 blokken regels in plaats van op rekeningen.
 
+### 2.7 Van celbudget naar tekenbudget, met terugval tijdens het exporteren (16 september 2026, avond)
+
+Vervolg op 2.5/2.6, op verzoek van Sylvain, aangedragen via een andere sessie en in dit
+gesprek bevestigd voordat er iets is gebouwd. De 50.000-rijengrens uit 2.5 rekende nog
+in cellen (rijen × kolommen). Diezelfde dag was echter al vastgesteld dat het celaantal
+zelf geen betrouwbare voorspeller is: bij 33 kolommen (2 extra, korte en numerieke
+btw-kolommen) haalde de tool 137.500 regels probleemloos, met meer cellen dan de
+140.000-regelsgrens bij 23 kolommen die al vastliep (zie 2.5). Eén vast getal moest dus
+altijd rekening houden met het zwaarste geval, waardoor elk bestand de prijs van de
+langste omschrijvingen betaalde, ook als het zelf uit korte, uniforme velden bestond.
+
+**Nagerekend op tekens in plaats van cellen.** Met dezelfde synthetische rijen als de
+meting in 2.5:
+
+| Geval | Rijen | Kolommen | Totaal tekens | Uitkomst |
+|---|---|---|---|---|
+| Gangbare tekst | 137.500 | 23 | ≈ 34,63 miljoen | Goed |
+| Gangbare tekst | 137.500 | 33 (2 extra btw) | ≈ 34,63 miljoen | Goed |
+| Gangbare tekst | 140.000 | 23 | ≈ 35,26 miljoen | Fout |
+| Drie tekstvelden 200 tekens langer | 100.000 | 23 | ≈ 85,4 miljoen | Fout |
+
+De twee 137.500-regelsgevallen (23 én 33 kolommen, allebei goed) komen op vrijwel
+hetzelfde tekental uit, ook al verschilt het celaantal fors. Tekens voorspellen het
+omslagpunt dus consistent over verschillende kolombreedtes, cellen niet.
+
+**Nieuwe grens: een tekenbudget van 12.000.000 tekens per Excel-bestand** (`CHAR_BUDGET`
+in `index.html`), met bijna 3× marge onder het gemeten omslagpunt van ~35 miljoen — dezelfde
+orde van marge als het 50.000-besluit in 2.5. De tool telt de werkelijke tekenlengte van de
+rijen die daadwerkelijk geëxporteerd worden (bij 20.000 regels of minder volledig, anders een
+steekproef verspreid over het hele bestand) en leidt daaruit de rijencap af. Bij de gemeten
+gangbare tekstlengte (≈ 252 tekens/regel) komt dat neer op ≈ 47.600 regels per bestand — in
+dezelfde orde als de eerdere 50.000, maar nu schaalt de grens mee met de werkelijke inhoud
+van elk specifiek bestand in plaats van met een vast aantal kolommen.
+
+**Terugval tijdens het exporteren.** Mislukt het schrijven van een deelbestand toch
+(minder werkgeheugen op de machine van de gebruiker dan de testbrowser, of tekst die nog
+veel langer is dan hier gemeten), dan vangt de tool die fout op, halveert de omvang van
+dát ene deel en probeert opnieuw, tot een ondergrens van 500 regels (`MIN_ROWS_PER_PART`).
+Een eenmaal verkleinde omvang blijft ook voor de volgende delen gelden, in plaats van
+telkens weer op de oorspronkelijke schatting te proberen. Zo past de grens zich tijdens
+de export aan de machine van de gebruiker aan, in plaats van vooraf op de testbrowser te
+gokken. Elke poging en elke halvering is zichtbaar in de statusmelding; er is geen stille
+vertraging. Omdat het uiteindelijke aantal delen hierdoor niet meer vooraf vaststaat,
+heten de bestanden voortaan `_deel1.xlsx`, `_deel2.xlsx`, … zonder aangekondigd totaal
+(voorheen `_deel1_van_N.xlsx`).
+
+Uitdrukkelijk niet gedaan: de schrijver vervangen door een streaming-bibliotheek zoals
+ExcelJS. Dat is een eigen traject, niet deze opdracht.
+
 ## 3. Bronnen en conclusies
 
 | Punt | Conclusie | Vindplaats |
@@ -167,17 +216,20 @@ klantmateriaal in.
 Gemeten op 16 september 2026, met node v24.14.0:
 
 ```
-node --test tests/*.test.mjs   ->   tests 39, pass 39, fail 0
+node --test tests/*.test.mjs   ->   tests 41, pass 41, fail 0
 ```
 
 Twee bestanden: `tests/xml-text.test.mjs` voor de tekstverwerking (entiteiten, CDATA,
 tagherkenning, en het uitdrukkelijke geval dat een DTD nooit wordt uitgevoerd, plus een test
 die journaalachtige CDATA over elke mogelijke bytegrens knipt) en `tests/btw-elementen.test.mjs`
-voor de btw-kolommen, de rijgrens (mutCap) en, sinds vandaag, de gesplitste Excel-export:
-`partCount` en `splitRows` worden — net als `mutCap` — letterlijk uit `index.html` gehaald en
-los gedraaid, met tests op het aantal deelbestanden bij ronde en net-over-de-grens aantallen,
-en op het feit dat samenvoegen van de delen exact de oorspronkelijke rijen teruggeeft, in
-dezelfde volgorde, zonder verlies of duplicatie.
+voor de btw-kolommen, de rijgrens en de gesplitste Excel-export. `excelRowCap`, `rijTekens` en
+`schatTotaalTekens` (het tekenbudget, zie §2.7) en `partCount`/`splitRows` (het aantal
+deelbestanden en de verdeling zelf) worden letterlijk uit `index.html` gehaald en los gedraaid,
+met tests op: de rijencap bij een precies gecontroleerde tekenlengte (met de hand na te
+rekenen), de ondergrens van 500 regels bij extreem lange tekst, lege en tekstloze invoer, het
+verschil tussen volledig tellen en een steekproef, het aantal deelbestanden bij ronde en
+net-over-de-grens aantallen, en het feit dat samenvoegen van de delen exact de oorspronkelijke
+rijen teruggeeft, in dezelfde volgorde, zonder verlies of duplicatie.
 
 Beide reparaties zijn eerst als falende test vastgelegd. Tegen de code van vóór de wijziging
 faalde `tests/btw-elementen.test.mjs` met 14 van de 17 gevallen, waaronder alle vier de
@@ -235,14 +287,13 @@ hebben gestaan.
   1.000.000 regels zonder dat het geheugengebruik opliep), daarna op verzoek van Sylvain
   gebouwd. Boven de 50.000-grens adviseert de tool nu eerst CSV; kiest de gebruiker
   bewust voor Excel, dan volgt de gesplitste export. Zie §2.6.
-- **Nog open: de grens is nog steeds één vaste waarde die niet meekijkt naar de
-  werkelijke tekstlengte in een specifiek bestand.** Een bestand met ongewoon lange
-  omschrijvingen kan in theorie nog steeds vastlopen ver onder 50.000 regels per
-  Excel-deelbestand, en een bestand met korte, uniforme velden zou juist veel meer regels
-  per deel aankunnen. Dat vangen zou vereisen dat de tool de fout bij het schrijven zelf
-  opvangt en dan pas kleiner probeert, in plaats van vooraf op basis van rijen en kolommen
-  te schatten. Dat is een grotere wijziging dan deze ronde, en ligt hier als voorstel, geen
-  toezegging.
+- **Opgelost op 16 september 2026 (avond): de grens was nog één vaste waarde die niet
+  meekeek naar de werkelijke tekstlengte.** Precies het punt hierboven, en op verzoek van
+  Sylvain in dezelfde avond gebouwd. De grens rekent nu in tekens (het werkelijke aantal,
+  gemeten of op een steekproef geschat) in plaats van in cellen, en de tool vangt daarnaast
+  een mislukt deelbestand op: hij halveert de omvang van dat deel en probeert opnieuw, tot
+  een ondergrens van 500 regels, zodat de grens zich tijdens de export ook aanpast aan
+  computers met minder geheugen dan de testbrowser. Zie §2.7.
 - **De subadministratie van XAF 3.2 wordt niet gelezen.** Daar zit onder meer `invDueDt`,
   de enige echte vervaldatum in de standaard. Voor een ouderdomsanalyse op een 3.2-bestand
   zou dat blok nodig zijn. Bewust niet gebouwd, omdat het blok optioneel is en in 4.0

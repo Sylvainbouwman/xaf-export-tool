@@ -252,15 +252,21 @@ test('een gesplitste export meet de breedste regel over alle bestanden samen', a
   assert.deepEqual(Array.from(done.rows[1].slice(23)), ['L', 9, '9', 'C', -9]);
 });
 
-// De rijlimiet van het Mutaties-tabblad staat in de hoofdcode, niet in de worker.
-// De drie declaraties worden er letterlijk uit gehaald en los gedraaid, zodat de
-// rekensom in het commentaar erbij ook echt gemeten is.
-function laadMutCap() {
+// De rijlimiet van het Mutaties-tabblad staat in de hoofdcode, niet in de worker. Sinds
+// 16 september 2026 (avond) rekent zij in werkelijke tekens, niet meer in cellen: het
+// celaantal bleek zelf geen betrouwbare voorspeller (zie update-bram-xaf-export-tool.md,
+// §2.7 en de toelichting bij CHAR_BUDGET in index.html). De declaraties worden er
+// letterlijk uit gehaald en los gedraaid, zodat wat hier getest wordt ook echt de code is
+// die de tool gebruikt.
+function laadExcelRowCap() {
   const html = readFileSync(fileURLToPath(new URL('../index.html', import.meta.url)), 'utf8');
   const stukken = [
-    /var ROW_CAP\s*=\s*\d+;/,
-    /var CELL_CAP\s*=\s*\d+;/,
-    /function mutCap\(headers\) \{[\s\S]*?\n {4}\}/,
+    /var CHAR_BUDGET\s*=\s*\d+;/,
+    /var MIN_ROWS_PER_PART\s*=\s*\d+;/,
+    /var CHAR_SAMPLE_SIZE\s*=\s*\d+;/,
+    /function rijTekens\(row\) \{[\s\S]*?\n {4}\}/,
+    /function schatTotaalTekens\(rows\) \{[\s\S]*?\n {4}\}/,
+    /function excelRowCap\(rows\) \{[\s\S]*?\n {4}\}/,
   ].map(re => {
     const treffer = html.match(re);
     assert.ok(treffer, 'declaratie niet gevonden: ' + re);
@@ -271,88 +277,100 @@ function laadMutCap() {
   return context;
 }
 
-test('de rijlimiet volgt het cellenbudget en het gemeten aantal kolommen', () => {
-  const { mutCap, ROW_CAP, CELL_CAP } = laadMutCap();
-  // Gemeten op 16 september 2026 in een echte browser met SheetJS 0.18.5: zie de
-  // toelichting bij ROW_CAP/CELL_CAP in index.html en update-bram-xaf-export-tool.md, §6.
-  assert.equal(ROW_CAP, 50000);
-  assert.equal(CELL_CAP, 1150000);
-  // Bij de drieentwintig vaste kolommen komt de grens exact op 50.000 rijen uit.
-  assert.equal(BASIS.length, 23);
-  assert.equal(mutCap(BASIS), 50000);
-  assert.equal(23 * 50000, 1150000, 'geen marge over bij 23 kolommen: kantelpunt ligt hier');
-  // Een extra btw-element kost vijf kolommen. Anders dan bij de oude, ongemeten grens
-  // verlaagt zelfs het eerste extra element de rijencap al, in plaats van pas na twee
-  // of vier elementen.
-  assert.equal(mutCap(new Array(28)), 41071, 'eerste extra btw-element (28 kolommen)');
-  assert.equal(mutCap(new Array(30)), 38333);
-  assert.equal(mutCap(new Array(31)), 37096);
-  assert.equal(mutCap(new Array(33)), 34848, 'drie btw-elementen: 23 + 5 x 2 kolommen');
-  assert.equal(mutCap(new Array(513)), 2241, 'negenennegentig btw-elementen');
-  for (const kolommen of [23, 28, 30, 31, 33, 60, 513]) {
-    assert.ok(mutCap(new Array(kolommen)) * kolommen <= CELL_CAP,
-      kolommen + ' kolommen blijft binnen het cellenbudget');
-  }
+// Rijen met een precies gecontroleerde tekenlengte per rij, zodat excelRowCap tegen een
+// exacte, met de hand na te rekenen verwachting getoetst kan worden in plaats van tegen
+// realistische maar moeilijker te verifiëren testdata.
+function maakRijenVanLengte(aantal, tekensPerRij) {
+  // Eén kolom met een string van precies tekensPerRij tekens: rijTekens(rij) === tekensPerRij.
+  const veld = 'x'.repeat(tekensPerRij);
+  return Array.from({ length: aantal }, () => [veld]);
+}
+
+test('CHAR_BUDGET en MIN_ROWS_PER_PART staan op de gemeten en besloten waarden', () => {
+  const { CHAR_BUDGET, MIN_ROWS_PER_PART, CHAR_SAMPLE_SIZE } = laadExcelRowCap();
+  // Gemeten op 16 september 2026: het omslagpunt lag rond 35 miljoen tekens (23 kolommen,
+  // gangbare tekst). CHAR_BUDGET is met bijna 3x marge daaronder gekozen; zie index.html.
+  assert.equal(CHAR_BUDGET, 12000000);
+  assert.equal(MIN_ROWS_PER_PART, 500);
+  assert.ok(CHAR_SAMPLE_SIZE > 0);
 });
 
-// De gesplitste Excel-export (besluit Sylvain, 16 september 2026: CSV is boven de
-// rijlimiet het advies, Excel blijft als bewuste tweede keuze beschikbaar, dan verdeeld
-// over meerdere bestanden van elk hoogstens mutCap(...) regels). partCount en splitRows
-// staan, net als mutCap, in de hoofdcode; ook hier wordt letterlijk uit index.html
-// gehaald en los gedraaid.
-function laadSplitFuncties() {
+test('excelRowCap rekent het budget exact om naar rijen bij een bekende tekenlengte', () => {
+  const { excelRowCap, CHAR_BUDGET, MIN_ROWS_PER_PART } = laadExcelRowCap();
+  // 252 tekens/rij is de gemeten gemiddelde lengte uit de browsermeting (zie
+  // update-bram-xaf-export-tool.md, §2.7): CHAR_BUDGET / 252 ligt in dezelfde orde als de
+  // eerdere 50.000-rijengrens, wat bevestigt dat de nieuwe grens bij gangbare tekst niet
+  // ineens iets heel anders oplevert.
+  const rijen252 = maakRijenVanLengte(1000, 252);
+  assert.equal(excelRowCap(rijen252), Math.floor(CHAR_BUDGET / 252));
+  assert.ok(excelRowCap(rijen252) > 40000 && excelRowCap(rijen252) < 55000,
+    'in dezelfde orde als de eerdere, inmiddels vervangen 50.000-rijengrens');
+
+  // Dubbele tekenlengte geeft (afgerond) de halve rijencap: het is werkelijk de tekens die
+  // tellen, niet het aantal rijen of kolommen.
+  const rijen504 = maakRijenVanLengte(1000, 504);
+  assert.equal(excelRowCap(rijen504), Math.floor(CHAR_BUDGET / 504));
+  assert.ok(Math.abs(excelRowCap(rijen252) / 2 - excelRowCap(rijen504)) <= 1);
+});
+
+test('excelRowCap zakt nooit onder MIN_ROWS_PER_PART, ook bij extreem lange tekst', () => {
+  const { excelRowCap, MIN_ROWS_PER_PART } = laadExcelRowCap();
+  const rijenExtreemLang = maakRijenVanLengte(10, 5000000); // 5 miljoen tekens in één rij
+  assert.equal(excelRowCap(rijenExtreemLang), MIN_ROWS_PER_PART);
+});
+
+test('excelRowCap geeft nooit meer rijen terug dan er zijn, en gaat netjes om met lege invoer', () => {
+  const { excelRowCap, MIN_ROWS_PER_PART } = laadExcelRowCap();
+  assert.equal(excelRowCap([]), MIN_ROWS_PER_PART, 'niets te exporteren: geen grens nodig, maar ook geen crash');
+  // Rijen zonder enige tekst (alleen null/undefined) mogen niet op een deling door nul
+  // stuklopen; excelRowCap valt dan terug op het werkelijke aantal rijen.
+  const legeRijen = [[null, undefined], [null, undefined]];
+  assert.equal(excelRowCap(legeRijen), legeRijen.length);
+  // Een handvol echte rijen (ver onder MIN_ROWS_PER_PART) blijft gewoon als geheel passen.
+  const paarRijen = maakRijenVanLengte(5, 252);
+  assert.equal(excelRowCap(paarRijen), Math.max(MIN_ROWS_PER_PART, Math.floor(12000000 / 252)));
+});
+
+test('schatTotaalTekens telt exact bij weinig rijen en blijft dicht bij de waarheid bij een steekproef', () => {
+  const { schatTotaalTekens, CHAR_SAMPLE_SIZE } = laadExcelRowCap();
+  // Onder CHAR_SAMPLE_SIZE rijen wordt alles geteld: dit moet dus exact kloppen, geen
+  // schatting.
+  const klein = maakRijenVanLengte(37, 100);
+  assert.equal(schatTotaalTekens(klein), 3700);
+
+  // Boven CHAR_SAMPLE_SIZE rijen schaalt een steekproef naar het totaal. Bij identieke
+  // rijen (zoals hier) moet dat, op afrondingsverschillen na, exact uitkomen.
+  const groot = maakRijenVanLengte(CHAR_SAMPLE_SIZE * 3 + 1, 100);
+  const geschat = schatTotaalTekens(groot);
+  const werkelijk = groot.length * 100;
+  assert.ok(Math.abs(geschat - werkelijk) / werkelijk < 0.01,
+    'steekproef mag hooguit 1% afwijken bij identieke rijen');
+});
+
+// partCount is het enige rekenwerk dat nog puur op aantallen zit: hoeveel
+// Excel-deelbestanden het adviesblok aankondigt (zie exportBtn-klikhandler). Het
+// werkelijk verdelen gebeurt sinds de terugval van 16 september 2026 (avond) niet meer
+// vooraf in vaste stukken (dat deed de inmiddels verwijderde splitRows), maar stap voor
+// stap in buildExcelSplit zelf, dat ook op een mislukt deel kan reageren door te
+// halveren. Dat stapsgewijze deel van buildExcelSplit hangt te veel samen met de
+// DOM/XLSX-omgeving om hier los te draaien; zie de meting in
+// update-bram-xaf-export-tool.md, §2.7 voor hoe dat is getoetst.
+function laadPartCount() {
   const html = readFileSync(fileURLToPath(new URL('../index.html', import.meta.url)), 'utf8');
-  const stukken = [
-    /function partCount\(n, cap\) \{[\s\S]*?\n {4}\}/,
-    /function splitRows\(rows, cap\) \{[\s\S]*?\n {4}\}/,
-  ].map(re => {
-    const treffer = html.match(re);
-    assert.ok(treffer, 'declaratie niet gevonden: ' + re);
-    return treffer[0];
-  });
+  const treffer = html.match(/function partCount\(n, cap\) \{[\s\S]*?\n {4}\}/);
+  assert.ok(treffer, 'declaratie niet gevonden: function partCount');
   const context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
-  vm.runInContext(stukken.join('\n'), context, { timeout: 1000 });
+  vm.runInContext(treffer[0], context, { timeout: 1000 });
   return context;
 }
 
 test('partCount rekent het aantal Excel-deelbestanden voorspelbaar uit', () => {
-  const { partCount } = laadSplitFuncties();
+  const { partCount } = laadPartCount();
   assert.equal(partCount(0, 50000), 0, 'niets te exporteren is nul bestanden');
   assert.equal(partCount(1, 50000), 1);
   assert.equal(partCount(50000, 50000), 1, 'precies op de grens: nog altijd één bestand');
   assert.equal(partCount(50001, 50000), 2, 'één regel boven de grens: al een tweede bestand');
   assert.equal(partCount(100000, 50000), 2);
   assert.equal(partCount(100001, 50000), 3);
-  assert.equal(partCount(1000000, 50000), 20, 'de omvang uit de meting in §6');
-});
-
-test('splitRows verdeelt zonder regels te verliezen, te verdubbelen of te herschikken', () => {
-  const { splitRows } = laadSplitFuncties();
-  const rows = Array.from({ length: 130000 }, (_, i) => ['rij' + i, i]);
-  const cap = 50000;
-  const delen = splitRows(rows, cap);
-
-  assert.equal(delen.length, 3, '130.000 regels bij een grens van 50.000 is drie delen');
-  assert.equal(delen[0].length, 50000);
-  assert.equal(delen[1].length, 50000);
-  assert.equal(delen[2].length, 30000, 'het laatste deel is het restant, geen volle 50.000');
-  for (const deel of delen) assert.ok(deel.length <= cap, 'geen deel overschrijdt de grens');
-
-  // Terug aan elkaar plakken geeft exact de oorspronkelijke rijen terug, in dezelfde
-  // volgorde. Met de hand aaneengeregen (niet .flat()): delen komt uit een vm-context en
-  // een array uit een andere realm geeft bij .flat()/concat vals-negatieve deepEqual-ruis
-  // in Node, zonder dat er werkelijk iets mis is met de gegevens.
-  const terug = [];
-  for (const deel of delen) for (const rij of deel) terug.push(rij);
-  assert.deepEqual(terug, rows);
-});
-
-test('splitRows en partCount komen op hetzelfde aantal delen uit', () => {
-  const { partCount, splitRows } = laadSplitFuncties();
-  const cap = 50000;
-  for (const n of [0, 1, cap - 1, cap, cap + 1, 2 * cap, 2 * cap + 1, 130000, 1000000]) {
-    const rows = new Array(n).fill(0);
-    assert.equal(splitRows(rows, cap).length, partCount(n, cap),
-      n + ' regels: aangekondigd aantal bestanden moet gelijk zijn aan het werkelijke aantal');
-  }
+  assert.equal(partCount(1000000, 50000), 20, 'de omvang uit de meting in §2.7');
 });

@@ -256,7 +256,7 @@
           <span>een <strong>bouwman.tools</strong> product</span>
           <div class="bt-tooltip">Gebouwd door Sylvain Bouwman</div>
         </div>
-        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 16 sep 2026, 22:02</div>
+        <div style="width:100%;text-align:right;font-size:10px;color:#94a3b8;margin-top:2px;"><!-- LAST_UPDATED -->Laatste update: 16 sep 2026, 22:58</div>
       </footer>
 
     </div>
@@ -935,59 +935,100 @@
     }
 
     // ── Excel export ─────────────────────────────────────────────────────
-    // Grens voor het Mutaties-tabblad. Vroeger stond hier een ongemeten aanname dat
-    // SheetJS vastloopt boven ongeveer 15 miljoen cellen per tabblad, overgenomen uit
-    // oudere code. Op 16 september 2026 is dat echt gemeten: in een browser, met
-    // dezelfde SheetJS-versie 0.18.5 als hierboven geladen, met synthetische rijen op
-    // de vorm van LINE_H. Er loopt niets vast op een harde grens in SheetJS zelf — die
-    // bestaat niet, ook niet in de documentatie van de bibliotheek — maar op het
-    // werkgeheugen van het browsertabblad (V8-heapfout, "RangeError: Invalid array
-    // length" tijdens XLSX.write, of "Too many properties to enumerate" bij zeer veel
-    // cellen). Bij 23 kolommen en gangbare tekstlengte in de omschrijvingen lag het
-    // omslagpunt tussen 137.500 rijen (nog goed) en 140.000 rijen (loopt vast) — rond
-    // de 3,2 miljoen cellen, niet 15 miljoen. Bovendien is het geen vaste celgrens:
-    // dezelfde 100.000 rijen die met gangbare tekst wel lukten, liepen alsnog vast
-    // toen drie tekstvelden 200 tekens langer werden. De uitkomst hangt dus af van de
-    // browser en van hoe lang de omschrijvingen in het bestand zelf zijn, niet alleen
-    // van het celaantal. Details en de metingen: update-bram-xaf-export-tool.md, §6.
+    // Grens voor het Mutaties-tabblad. Op 16 september 2026 gemeten (browser, SheetJS
+    // 0.18.5, synthetische rijen op de vorm van LINE_H): geen harde celgrens in SheetJS
+    // zelf, maar werkgeheugen van het browsertabblad dat opraakt tijdens XLSX.write
+    // ("RangeError: Invalid array length", of "Too many properties to enumerate" bij
+    // zeer veel cellen). Een eerste versie van deze grens rekende met het aantal cellen
+    // (rijen x kolommen), met ROW_CAP 50.000 bij 23 kolommen. Diezelfde dag bleek dat
+    // model zelf niet te kloppen: bij 33 kolommen (2 extra btw-elementen, kort en
+    // numeriek) haalde de tool 137.500 rijen zonder problemen, met meer cellen dan de
+    // 23-koloms 140.000-rijengrens die al vastliep. Het celaantal voorspelt dit dus
+    // niet betrouwbaar; de werkelijke tekstlengte in de omschrijvingen wel: nagerekend
+    // met dezelfde synthetische rijen kwamen de 137.500-rijen-bij-23-kolommen (goed) en
+    // de 137.500-rijen-bij-33-kolommen (ook goed) vrijwel op hetzelfde totale aantal
+    // tekens uit (~34,63 miljoen), terwijl de 140.000-rijengrens (fout) net daarboven
+    // lag (~35,26 miljoen). Zie update-bram-xaf-export-tool.md, §2.7 voor de volledige
+    // cijfers.
     //
-    // Gekozen grens (besluit Sylvain, 16 september 2026): 50.000 rijen bij 23
-    // kolommen, bijna 3x onder het gemeten omslagpunt, als marge voor langere
-    // omschrijvingen dan de testdata en voor zwakkere machines dan de testbrowser.
-    // Zoals voorheen geldt het laagste van ROW_CAP en het cellenbudget gedeeld door
-    // het gemeten aantal kolommen, zodat een bredere regel (meer btw-elementen) een
-    // lagere grens krijgt. Bij 23 kolommen komt dat exact op 50.000 rijen uit; elk
-    // extra btw-element (5 kolommen erbij) verlaagt de grens dus al, in plaats van
-    // pas na twee of vier elementen zoals in de oude berekening. Bij drie
-    // btw-elementen (33 kolommen) is de grens 34.848 rijen, bij het maximum van
-    // negenennegentig elementen (513 kolommen) 2.241 rijen.
-    var ROW_CAP  = 50000;
-    var CELL_CAP = 1150000;
-    function mutCap(headers) {
-      var cols = Math.max((headers && headers.length) || 0, 1);
-      return Math.min(ROW_CAP, Math.floor(CELL_CAP / cols));
+    // De grens rekent daarom in tekens, niet in cellen of kolommen: het werkelijke
+    // aantal tekens in de rijen die daadwerkelijk worden geëxporteerd (String(waarde)
+    // van elk veld, dus getallen tellen mee naar hun tekstweergave, zoals ze ook in de
+    // XML terechtkomen), tegen een vast tekenbudget per Excel-bestand.
+    //
+    // CHAR_BUDGET (besluit Sylvain, 16 september 2026): 12.000.000 tekens, met bijna 3x
+    // marge onder het gemeten omslagpunt van ~35 miljoen — dezelfde orde van marge als
+    // het eerdere, inmiddels vervangen ROW_CAP-besluit — als buffer voor nog langere
+    // omschrijvingen dan de testdata en voor zwakkere machines dan de testbrowser
+    // (gemeten jsHeapSizeLimit ~4192 MB). Bij de gangbare, in de meting gebruikte
+    // tekstlengte (~252 tekens/rij) komt dat neer op ongeveer 47.600 rijen per bestand,
+    // in dezelfde orde als de eerdere 50.000 — maar deze grens schaalt nu mee met de
+    // werkelijke inhoud: een bestand met kortere omschrijvingen krijgt vanzelf meer
+    // rijen per deel, een bestand met langere minder.
+    //
+    // MIN_ROWS_PER_PART is de ondergrens voor de terugvalpoging in buildExcelSplit
+    // hieronder: mislukt een deel toch (te weinig geheugen op de machine van de
+    // gebruiker, of een bestand met nog veel langere tekst dan hier gemeten), dan
+    // halveert de tool het deel en probeert opnieuw, tot aan deze bodem. 500 rijen is
+    // ruim honderd keer kleiner dan elk deel dat in de meting is getest en dus een
+    // veilige, praktische ondergrens: klein genoeg om vrijwel altijd te lukken, groot
+    // genoeg om bij een heel groot bestand niet in duizenden bestandjes te eindigen.
+    var CHAR_BUDGET       = 12000000;
+    var MIN_ROWS_PER_PART = 500;
+    // Rijen waarover het tekenaantal volledig wordt geteld voordat op een steekproef
+    // wordt overgestapt (zie schatTotaalTekens). Bij het maximum van dit bestand
+    // (enkele miljoenen rijen) blijft volledig tellen in de tientallen milliseconden;
+    // een steekproef is dus alleen nodig als marge voor nog grotere bestanden.
+    var CHAR_SAMPLE_SIZE  = 20000;
+
+    // Som van de tekenlengte van elke waarde in een rij (null/undefined tellen niet mee).
+    function rijTekens(row) {
+      var n = 0;
+      for (var i = 0; i < row.length; i++) {
+        var v = row[i];
+        if (v !== null && v !== undefined) n += String(v).length;
+      }
+      return n;
     }
-    // Hoeveel Excel-deelbestanden nodig zijn om n mutatieregels te exporteren, bij een
-    // limiet van cap regels per bestand. Puur rekenwerk, gebruikt door zowel de
-    // adviestekst in de exportBtn-klikhandler als door splitRows() hieronder — zodat het
-    // aangekondigde aantal bestanden altijd overeenkomt met het aantal dat werkelijk wordt
-    // gedownload.
+
+    // Schat het totale aantal tekens in rows. Bij CHAR_SAMPLE_SIZE rijen of minder wordt
+    // alles geteld; anders een systematische steekproef (elke k-de rij, verspreid over
+    // het hele bestand in plaats van alleen het begin, zodat een cluster met ongewoon
+    // lange tekst verderop in het bestand niet wordt gemist) geschaald naar het totaal.
+    function schatTotaalTekens(rows) {
+      if (rows.length <= CHAR_SAMPLE_SIZE) {
+        var som = 0;
+        for (var i = 0; i < rows.length; i++) som += rijTekens(rows[i]);
+        return som;
+      }
+      var stap = Math.max(1, Math.floor(rows.length / CHAR_SAMPLE_SIZE));
+      var som = 0, n = 0;
+      for (var i = 0; i < rows.length; i += stap) { som += rijTekens(rows[i]); n++; }
+      return Math.round(som / n * rows.length);
+    }
+
+    // Rijencap op basis van de werkelijke tekstinhoud van déze rows, in plaats van een
+    // vast aantal kolommen. rows zit al in het geheugen (de export begint pas hierna),
+    // dus dit is een meting op de echte export, geen schatting vooraf.
+    function excelRowCap(rows) {
+      if (!rows.length) return MIN_ROWS_PER_PART;
+      var gemiddeld = schatTotaalTekens(rows) / rows.length;
+      if (!(gemiddeld > 0)) return rows.length; // geen tekst om op te rekenen: geen grens nodig
+      return Math.max(MIN_ROWS_PER_PART, Math.floor(CHAR_BUDGET / gemiddeld));
+    }
+    // Hoeveel Excel-deelbestanden het adviesblok aankondigt, bij een geschatte omvang van
+    // cap regels per bestand. Puur rekenwerk voor de adviestekst in de exportBtn-
+    // klikhandler; het werkelijke aantal in buildExcelSplit kan hoger uitvallen als de
+    // terugval daar onderweg een deel moet halveren, en het adviesblok zegt dat er ook bij.
     function partCount(n, cap) {
       return n > 0 ? Math.ceil(n / cap) : 0;
-    }
-    // Verdeelt rows in opeenvolgende stukken van elk maximaal cap regels, zonder regels
-    // over te slaan, te dupliceren of van volgorde te wisselen.
-    function splitRows(rows, cap) {
-      var chunks = [];
-      for (var i = 0; i < rows.length; i += cap) chunks.push(rows.slice(i, i + cap));
-      return chunks;
     }
     var IDX_PERIOD = 5;      // tx_periodNumber column index in rows
     var IDX_BEDRAG = 15;     // 'Bedrag' (signed) kolom index in rows
 
     function addSheet(wb, name, headers, dataRows) {
       // Split into multiple sheets when row count exceeds Excel's limit
-      var cap = mutCap(headers);
+      var cap = excelRowCap(dataRows);
       var chunks = [];
       if (dataRows.length <= cap) {
         chunks.push(dataRows);
@@ -1107,15 +1148,15 @@
 
     // Eén Excel-bestand met alle mutatieregels. Wordt alleen aangeroepen nadat de
     // aanroeper (exportBtn) zelf al heeft gecontroleerd dat filterRows(data.rows).length
-    // binnen mutCap(data.lineH) valt — zie de toelichting bij ROW_CAP/CELL_CAP hierboven
-    // en het besluit van Sylvain (16 september 2026) om boven die grens niet meer stil af
-    // te kappen, maar eerst CSV te adviseren en Excel alleen gesplitst aan te bieden
-    // (buildExcelSplit). De afkapping hieronder blijft als laatste vangnet staan voor het
-    // geval deze functie ooit direct met te veel regels wordt aangeroepen; in de normale
-    // werking van de tool wordt zij niet bereikt.
+    // binnen excelRowCap(filteredRows) valt — zie de toelichting bij CHAR_BUDGET
+    // hierboven en het besluit van Sylvain (16 september 2026) om boven die grens niet
+    // meer stil af te kappen, maar eerst CSV te adviseren en Excel alleen gesplitst aan
+    // te bieden (buildExcelSplit). De afkapping hieronder blijft als laatste vangnet
+    // staan voor het geval deze functie ooit direct met te veel regels wordt
+    // aangeroepen; in de normale werking van de tool wordt zij niet bereikt.
     function buildExcel(data, baseName) {
       var filteredRows = filterRows(data.rows);
-      var cap          = mutCap(data.lineH);
+      var cap          = excelRowCap(filteredRows);
       var isTruncated  = filteredRows.length > cap;
       var mutRows      = isTruncated ? filteredRows.slice(0, cap) : filteredRows;
 
@@ -1148,18 +1189,27 @@
     }
 
     // Excel boven de rijgrens: bewuste tweede keuze van de gebruiker (zie het adviesblok
-    // #excel-advies), verdeeld over meerdere bestanden van elk maximaal mutCap(data.lineH)
-    // mutatieregels. Elk deelbestand krijgt dezelfde Bedrijfsgegevens/Grootboekrekeningen/
-    // BTW-codes/Beginsaldi/Deb_Cred/Kolommenbalans/Aansluitcheck-tabbladen als het
-    // ongesplitste bestand, en alleen het Mutaties-tabblad verschilt per deel. Sequentieel
-    // met een korte pauze tussen de bestanden (zoals "Download per rekening" al deed), zodat
-    // de browser tussendoor kan opschonen — empirisch getest tot 1.000.000 regels zonder dat
-    // het geheugengebruik opliep (update-bram-xaf-export-tool.md, §6).
+    // #excel-advies), verdeeld over meerdere bestanden. Elk deelbestand krijgt dezelfde
+    // Bedrijfsgegevens/Grootboekrekeningen/BTW-codes/Beginsaldi/Deb_Cred/Kolommenbalans/
+    // Aansluitcheck-tabbladen als het ongesplitste bestand, en alleen het Mutaties-
+    // tabblad verschilt per deel. Sequentieel met een korte pauze tussen de bestanden
+    // (zoals "Download per rekening" al deed), zodat de browser tussendoor kan
+    // opschonen — empirisch getest tot 1.000.000 regels zonder dat het geheugengebruik
+    // opliep (update-bram-xaf-export-tool.md, §6).
+    //
+    // De omvang van elk deel start op excelRowCap(filteredRows), een schatting op de
+    // werkelijke tekstinhoud van dit bestand. Mislukt het schrijven van een deel toch
+    // (een machine met minder geheugen dan de testbrowser, of tekst die nog veel langer
+    // is dan wat hier gemeten is), dan vangt de tool die fout op, halveert de omvang van
+    // dát deel en probeert het opnieuw, tot aan MIN_ROWS_PER_PART. Zo past de grens zich
+    // aan tijdens de export, aan de machine van de gebruiker, in plaats van vooraf op
+    // basis van deze testbrowser te gokken. Een gehalveerde omvang blijft ook voor de
+    // volgende delen gelden: is er eenmaal te weinig geheugen gebleken, dan is de kans
+    // klein dat een groter deel het daarna wel redt. Doordat het aantal delen hierdoor
+    // vooraf niet vaststaat, heten de bestanden `_deel1.xlsx`, `_deel2.xlsx`, … zonder
+    // aangekondigd totaal.
     function buildExcelSplit(data, baseName) {
       var filteredRows = filterRows(data.rows);
-      var cap          = mutCap(data.lineH);
-      var parts        = splitRows(filteredRows, cap);
-      var totalParts   = parts.length;
       var kbRows       = buildKolommenbalans(data.accs, data.obs, filteredRows);
       var kbTotaal     = kbRows[kbRows.length - 1];
       var kbSorted     = sortByAcc(kbRows.slice(0, -1), 0);
@@ -1167,32 +1217,46 @@
       var ac = computeAansluitcheck(data.rows); // eenmalig; onafhankelijk van het deel
 
       exportBtn.disabled = true;
-      var idx = 0;
-      function next() {
-        if (idx >= totalParts) {
-          setStatus('Klaar — ' + fmt(filteredRows.length) + ' regels in ' + totalParts + ' Excel-bestand(en) gedownload.', 'ok');
-          exportBtn.disabled = false;
-          return;
-        }
-        var partNr  = idx + 1;
-        var mutRows = parts[idx];
-        setStatus('Excel deel ' + partNr + '/' + totalParts + ' genereren (' + fmt(mutRows.length) + ' regels)…');
+      var remaining   = filteredRows;
+      var currentSize = excelRowCap(filteredRows);
+      var partNr      = 0;
+      var written     = 0;
+
+      function schrijfDeel(size) {
+        var chunk = remaining.slice(0, size);
+        setStatus('Excel deel ' + (partNr + 1) + ' genereren (' + fmt(chunk.length) +
+          ' van ' + fmt(remaining.length) + ' resterende regels)…');
         setTimeout(function() {
           try {
             var wb = XLSX.utils.book_new();
             addContextSheets(wb, data, kbSorted);
-            addSheet(wb, 'Mutaties', data.lineH, mutRows);
+            addSheet(wb, 'Mutaties', data.lineH, chunk);
             addAansluitcheckSheet(wb, ac);
-            XLSX.writeFile(wb, baseName + '_deel' + partNr + '_van_' + totalParts + '.xlsx');
-            idx++;
-            setTimeout(next, 600);
+            XLSX.writeFile(wb, baseName + '_deel' + (partNr + 1) + '.xlsx');
+            partNr++;
+            written += chunk.length;
+            remaining = remaining.slice(chunk.length);
+            if (!remaining.length) {
+              setStatus('Klaar — ' + fmt(written) + ' regels in ' + partNr + ' Excel-bestand(en) gedownload.', 'ok');
+              exportBtn.disabled = false;
+              return;
+            }
+            setTimeout(function() { schrijfDeel(currentSize); }, 600);
           } catch (ex) {
-            setStatus('Excel fout in deel ' + partNr + ': ' + ex.message, 'err');
-            exportBtn.disabled = false;
+            if (size <= MIN_ROWS_PER_PART) {
+              setStatus('Deel ' + (partNr + 1) + ' lukt ook niet op de kleinst toegestane omvang (' +
+                fmt(size) + ' regels): ' + ex.message, 'err');
+              exportBtn.disabled = false;
+              return;
+            }
+            currentSize = Math.max(MIN_ROWS_PER_PART, Math.floor(size / 2));
+            setStatus('Deel ' + (partNr + 1) + ' met ' + fmt(size) + ' regels is mislukt — probeer ' +
+              'opnieuw met ' + fmt(currentSize) + ' regels…', 'err');
+            setTimeout(function() { schrijfDeel(currentSize); }, 600);
           }
         }, 50);
       }
-      next();
+      schrijfDeel(currentSize);
     }
 
     // ── Drag & drop ───────────────────────────────────────────────────────
@@ -1293,7 +1357,7 @@
           }
           // Boven de grens adviseert de tool CSV; Excel kan dan nog, gesplitst over
           // meerdere bestanden (zie exportBtn-klikhandler en buildExcelSplit).
-          var cap = mutCap(msg.lineH);
+          var cap = excelRowCap(msg.rows);
           var mutLbl = nLines > cap ? 'regels (CSV geadviseerd)' : 'Mutatieregels';
           setStatCard('stat-mutaties', fmt(nLines), mutLbl);
           setStatCard('stat-btw', fmt(msg.vats.length - 1));
@@ -1460,7 +1524,7 @@
                       : ' &nbsp;<span style="color:#dc2626">⚠ sluit niet</span>');
 
       var dlHint = document.getElementById('dl-hint');
-      if (n > mutCap(parsed.lineH)) {
+      if (n > excelRowCap(rows)) {
         dlHint.innerHTML = '&#9888; Selectie heeft <strong>' + fmt(n) + '</strong> regels — voeg minder rekeningen toe of verfijn de zoekterm.';
         dlHint.style.color = '#dc2626';
       } else if (!selectedAccIDs.length) {
@@ -1581,7 +1645,7 @@
       if (!parsed) return;
       var rows = getAnalyseRows();
       if (!rows.length) { setStatus('Geen regels voor deze selectie.', 'err'); return; }
-      if (rows.length > mutCap(parsed.lineH)) {
+      if (rows.length > excelRowCap(rows)) {
         setStatus('Selectie heeft ' + fmt(rows.length) + ' regels — voeg minder rekeningen toe.', 'err'); return;
       }
       var suffix = selectedAccIDs.length === 1 ? '_rek' + selectedAccIDs[0] : '_selectie';
@@ -1613,11 +1677,11 @@
       cbs.forEach(function(cb) { selPer[cb.value] = cb.checked; if (!cb.checked) allPer = false; });
       var tooLarge = [];
       selectedAccIDs.forEach(function(id) {
-        var cnt = parsed.rows.filter(function(r) {
+        var accRows = parsed.rows.filter(function(r) {
           if (!allPer && !selPer[String(r[IDX_PERIOD])]) return false;
           return r[8] === id;
-        }).length;
-        if (cnt > mutCap(parsed.lineH)) tooLarge.push(id + ' (' + fmt(cnt) + ' regels)');
+        });
+        if (accRows.length > excelRowCap(accRows)) tooLarge.push(id + ' (' + fmt(accRows.length) + ' regels)');
       });
       if (tooLarge.length) {
         setStatus('Te groot voor Excel: ' + tooLarge.join(', '), 'err'); return;
@@ -1660,16 +1724,19 @@
     var excelAdviesEl = document.getElementById('excel-advies');
     exportBtn.addEventListener('click', function() {
       if (!parsed) return;
-      var n   = filterRows(parsed.rows).length;
-      var cap = mutCap(parsed.lineH);
+      var rows = filterRows(parsed.rows);
+      var n    = rows.length;
+      var cap  = excelRowCap(rows);
       if (n > cap) {
         var delen = partCount(n, cap);
         document.getElementById('excel-advies-tekst').textContent =
           'Deze export bevat naar verwachting ' + fmt(n) + ' mutatieregels, meer dan de ' +
-          fmt(cap) + ' die in één Excel-bestand passen. Voor grote administraties adviseren ' +
-          'we CSV: dat bestand blijft altijd volledig, in één stuk. Wilt u toch Excel ' +
-          'gebruiken, dan wordt de export verdeeld over ' + delen + ' bestanden van ' +
-          'maximaal ' + fmt(cap) + ' mutatieregels elk.';
+          fmt(cap) + ' die naar schatting in één Excel-bestand passen. Voor grote ' +
+          'administraties adviseren we CSV: dat bestand blijft altijd volledig, in één ' +
+          'stuk. Wilt u toch Excel gebruiken, dan wordt de export verdeeld over naar ' +
+          'schatting ' + delen + ' bestanden van ongeveer ' + fmt(cap) + ' mutatieregels ' +
+          'elk — bij te weinig geheugen op uw computer maakt de tool onderweg kleinere ' +
+          'bestanden.';
         excelAdviesEl.style.display = 'block';
         return;
       }
