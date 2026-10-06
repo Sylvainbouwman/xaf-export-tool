@@ -231,7 +231,7 @@
       <div>
         <h1 class="bt-kopbalk-titel">XAF Raw Export</h1>
         <div class="bt-kopbalk-sub">Verwerk XAF-auditfiles naar Excel of CSV — volledig in de browser</div>
-        <div class="bt-kopbalk-bijgewerkt"><!-- LAST_UPDATED -->Laatste update: 29 sep 2026, 13:27</div>
+        <div class="bt-kopbalk-bijgewerkt"><!-- LAST_UPDATED -->Laatste update: 6 okt 2026, 09:42</div>
       </div>
     </div>
     <div class="bt-kopbalk-acties noprint">
@@ -285,6 +285,8 @@
       <div id="obs-warning" style="display:none;margin:8px 0;padding:7px 10px;background:#fef9c3;border:1px solid #fde047;border-radius:6px;font-size:0.8rem;color:#713f12;">
         &#9888;&nbsp; Deze auditfile bevat <strong>geen beginsaldi</strong>. Het pakket heeft ze niet meegeleverd — beg.saldo staat overal op 0.
       </div>
+
+      <div id="afgekapt-warning" style="display:none;margin:8px 0;padding:7px 10px;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;font-size:0.8rem;color:#7f1d1d;"></div>
 
       <div id="periode-wrap">
         <div class="periode-header">
@@ -581,7 +583,7 @@
         var stoppers = ['<customersSuppliers', '<generalLedger', '<streetAddress', '<postalAddress', '<transactions'];
         var scopeEnd = xml.length;
         stoppers.forEach(function(sw) {
-          var i = xml.indexOf(sw, compStart);
+          var i = xmlOpeningTag(xml, sw.slice(1), compStart);
           if (i !== -1 && i < scopeEnd) scopeEnd = i;
         });
         ci = childTextsStr('<company>' + xml.slice(compStart, scopeEnd) + '</company>');
@@ -728,6 +730,7 @@
       var totalFiles = files.length;
       try {
         var merged = { bedrijf: null, accs: null, vats: null, obs: null, custSups: null, rows: [] };
+        var afgekapt = []; // bestandsnummers waarvan een <journal> niet is afgesloten
         // accMap en custSupMap worden gedeeld over alle bestanden zodat vervolgbestanden
         // (zonder generalLedger) toch de rekening- en relatieomschrijvingen kunnen opzoeken.
         var accMap = {}, custSupMap = {};
@@ -764,7 +767,8 @@
               charsRead += chunk.length;
 
               if (!headerDone) {
-                var tIdx = buffer.search(/<transactions[\s>]/);
+                // Letterlijke tekst (CDATA, commentaar) vóór het echte element telt niet mee.
+                var tIdx = xmlOpeningTag(buffer, 'transactions', 0);
                 if (tIdx !== -1) {
                   var headerXml = buffer.slice(0, tIdx);
                   buffer = buffer.slice(tIdx);
@@ -822,7 +826,7 @@
               var jS2 = xmlOpeningTag(buffer, 'journal', pos2);
               if (jS2 === -1) break;
               var jE2 = xmlClosingTag(buffer, '</journal>', jS2);
-              if (jE2 === -1) break;
+              if (jE2 === -1) { afgekapt.push(fi + 1); break; }
               jE2 += 10;
               parseJournal(buffer.slice(jS2, jE2), merged.rows, accMap, custSupMap);
               pos2 = jE2;
@@ -874,6 +878,8 @@
           vats:     merged.vats     || [['vatID', 'vatDesc', 'vatToPayAccID', 'vatToClaimAccID']],
           obs:      merged.obs      || [['Nr.', 'Rekening', 'Omschrijving', 'Bedrag (abs)', 'D/C', 'Bedrag']],
           obsInFile: !!(merged.obs && merged.obs.length > 1),
+          afgekapt: afgekapt,
+          aantalBestanden: totalFiles,
           custSups: merged.custSups || [['Relatie ID', 'Relatie naam', 'Type', 'KvK-nummer', 'BTW-nummer', 'Contactpersoon', 'Telefoon', 'E-mail']],
           lineH:    buildLineH(widest),
           rows:     merged.rows,
@@ -1418,6 +1424,7 @@
       document.getElementById('export-hint').style.display      = 'none';
       document.getElementById('excel-advies').style.display     = 'none';
       document.getElementById('obs-warning').style.display      = 'none';
+      document.getElementById('afgekapt-warning').style.display = 'none';
       document.getElementById('analyse-wrap').style.display     = 'none';
       document.getElementById('acc-picker').innerHTML            = '';
       document.getElementById('acc-chips').innerHTML            = '';
@@ -1456,6 +1463,17 @@
           var nLines = msg.rows.length;
           var nCs    = msg.custSups ? msg.custSups.length - 1 : 0;
           setStatus('Ingelezen.', 'ok');
+
+          var afgeknipt = document.getElementById('afgekapt-warning');
+          if (msg.afgekapt && msg.afgekapt.length) {
+            var welke = msg.aantalBestanden > 1
+              ? 'Bestand ' + msg.afgekapt.join(' en ') + ' lijkt'
+              : 'Het bestand lijkt';
+            afgeknipt.textContent = '⚠  ' + welke + ' afgekapt of beschadigd: het laatste dagboek is niet afgesloten en is niet ingelezen. De mutaties in deze export zijn mogelijk onvolledig.';
+            afgeknipt.style.display = 'block';
+          } else {
+            afgeknipt.style.display = 'none';
+          }
 
           // Stat cards
           setStatCard('stat-rekeningen', fmt(msg.accs.length - 1));
