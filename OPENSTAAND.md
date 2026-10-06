@@ -37,15 +37,6 @@ De subadministratie van XAF 3.2 (onder meer `invDueDt`, de enige echte vervaldat
 
 De schrijver is bewust niet vervangen door een streaming-bibliotheek zoals ExcelJS. Dat is een eigen traject. Tot dan houdt de tool de Excel-export klein met het tekenbudget, de gesplitste export en de terugval tijdens het exporteren.
 
-### 7. De gedeelde kopbalk beoordelen
-- **Status:** open, wacht op beoordeling door de eigenaar
-- **Eigenaar:** Sylvain
-- **Vindplaats:** `vrijgave-xaf-export-tool-2026-09-29-kopbalk.md`, r.30 en r.34
-
-De bovenkant van de pagina ziet er anders uit: een eerder logo (het JOIN-logo met de koppeling naar joinadministraties.nl) is vervangen door het pictogramvlak en de knop Uitloggen is nieuw. Bekijk de pagina na publicatie op bouwman.tools met het oog: de kopbalk blijft staan bij het scrollen, de knoppen erin werken en er valt niets over de kopbalk heen.
-
-**Te sluiten wanneer:** de eigenaar de kopbalk op bouwman.tools heeft bekeken en akkoord of aanpassingen heeft gemeld.
-
 ## Gesloten
 
 ### 3. Rijgrens van het Excel-bestand: gemeten, gekozen en gebouwd
@@ -83,3 +74,14 @@ De ondersteuning voor meer dan één btw-element per boekingsregel rust op de XS
 **Te sluiten wanneer:** er een echt bestand met meervoudige btw lokaal is getoetst, of besloten is dat het bewijs op de XSD en de verzonnen fragmenten volstaat.
 
 Besluit 06-10-2026, Sylvain in de sessie, na uitleg met een synthetisch voorbeeld (een regel met een 9%- en een 21%-blok): het bewijs op de XSD en de verzonnen fragmenten volstaat. Afgewezen: open laten tot er een echt bestand is, en zelf lokaal toetsen. Reden: pakketten splitsen zo'n boeking meestal in twee regels, er is geen bestand bij de hand en de tool leest het geval volgens de standaard. Bewijs: `tests/btw-elementen.test.mjs` (17 gevallen).
+
+### 7. De gedeelde kopbalk beoordelen
+- **Status:** gesloten 06-10-2026, de eigenaar heeft de kopbalk op de live pagina bekeken en is akkoord
+- **Eigenaar:** Sylvain
+- **Vindplaats:** `vrijgave-xaf-export-tool-2026-09-29-kopbalk.md`, r.30 en r.34
+
+De bovenkant van de pagina ziet er anders uit: een eerder logo (het JOIN-logo met de koppeling naar joinadministraties.nl) is vervangen door het pictogramvlak en de knop Uitloggen is nieuw. Bekijk de pagina na publicatie op bouwman.tools met het oog: de kopbalk blijft staan bij het scrollen, de knoppen erin werken en er valt niets over de kopbalk heen.
+
+**Te sluiten wanneer:** de eigenaar de kopbalk op bouwman.tools heeft bekeken en akkoord of aanpassingen heeft gemeld.
+
+Besluit 06-10-2026, Sylvain in de sessie: de kopbalk is akkoord, zonder aanpassingen. Bewijs: zijn antwoord in de sessie na publicatie op 06-10-2026 (09:59 CEST).
