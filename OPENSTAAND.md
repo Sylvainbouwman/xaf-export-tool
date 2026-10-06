@@ -21,20 +21,6 @@ Formaat: per punt
 
 ## Open
 
-### 1. Header-detectie bij een letterlijke "transactions"-tag binnen een CDATA-blok
-- **Status:** open
-- **Eigenaar:** Sylvain
-- **Vindplaats:** vrijgave-xaf-xml-tekst-2026-09-08.md, verwijderd bij commit 20c05a0 (14-09-2026, "afgehandeld")
-
-Header-detectie bij een letterlijke "transactions"-tag binnen een CDATA-blok. De splitsing tussen header en mutaties zoekt met `buffer.search(/<transactions[\s>]/)` in de ruwe, nog niet van CDATA ontdane tekst (`index.html`); een dergelijke tag als letterlijke tekst vóór het echte structurele element zou de header te vroeg laten afsnijden. Gecontroleerd op 19-09-2026: geen test in `tests/` dekt dit specifieke geval af.
-
-### 2. Een ontbrekende melding bij een onvolledig eindbuffer
-- **Status:** open
-- **Eigenaar:** Sylvain
-- **Vindplaats:** vrijgave-xaf-xml-tekst-2026-09-08.md, verwijderd bij commit 20c05a0 (14-09-2026, "afgehandeld")
-
-Een ontbrekende melding bij een onvolledig eindbuffer. Blijft er na afloop van de stream in `index.html` een onvolledig `<journal>`-blok in de buffer staan (bijvoorbeeld bij een afgekapt of corrupt bestand), dan wordt dat restant stilzwijgend genegeerd; er verschijnt geen waarschuwing dat het bestand mogelijk onvolledig is. Gecontroleerd op 19-09-2026: geen test in `tests/` dekt dit specifieke geval af.
-
 ### 4. De subadministratie van XAF 3.2 wordt niet gelezen
 - **Status:** open, bewuste beperking, als achtergrond gemarkeerd op 04-10-2026
 - **Eigenaar:** sessie
@@ -77,3 +63,21 @@ De bovenkant van de pagina ziet er anders uit: een eerder logo (het JOIN-logo me
 - **Vindplaats:** `update-bram-xaf-export-tool.md`, r.269, r.284 en r.290 (§6); uitwerking §2.5, §2.6 en §2.7; `index.html` (`CHAR_BUDGET`, `MIN_ROWS_PER_PART`); `tests/btw-elementen.test.mjs`
 
 Gesloten 04-10-2026. Drie punten uit §6 van `update-bram-xaf-export-tool.md` stonden daar al als opgelost: het onjuiste cellenbudget van ongeveer 15 miljoen (gemeten en vervangen door een rijgrens), de rijgrens die een afkapping was en nu een gesplitste export is, en de vaste grens die niet naar de tekstlengte keek en nu in tekens rekent met terugval tijdens het exporteren. Bewijs: het besluit staat in het document zelf met datum (16-09-2026, Sylvain), met de meting erbij in §6; `tests/btw-elementen.test.mjs` test de rijencap, de ondergrens van 500 regels, het aantal deelbestanden en dat samenvoegen van de delen de oorspronkelijke rijen teruggeeft. Het punt blijft hier staan omdat het in dat document als open eind begon.
+
+### 1. Header-detectie bij een letterlijke "transactions"-tag binnen een CDATA-blok
+- **Status:** gesloten 06-10-2026, gerepareerd en getest
+- **Eigenaar:** Sylvain
+- **Vindplaats:** vrijgave-xaf-xml-tekst-2026-09-08.md, verwijderd bij commit 20c05a0 (14-09-2026, "afgehandeld"); `index.html` (worker, zoekt `transactions` nu met `xmlOpeningTag`); `tests/header-en-eindbuffer.test.mjs`
+
+Besluit 06-10-2026, op advies van de sessie, mandaat van Sylvain van 05-10-2026: repareren in plaats van als beperking laten staan. Afgewezen: het punt laten staan als bekende beperking. Reden: de reparatie is klein, de bestaande hulpfunctie voor letterlijke tekst deed al wat nodig was, en een afgesneden header geeft stil een lege bedrijfsnaam en rekeningenlijst.
+
+De splitsing tussen header en mutaties negeert nu letterlijke tekst (CDATA, commentaar, verwerkingsinstructies). Hetzelfde geldt voor de grenzen waarmee `parseHeader` het bedrijfsblok afbakent. Bewijs: de test "letterlijke transactions-tag in CDATA snijdt de header niet af" draait over drie knippatronen van de bytestroom (bedrijfsnaam, rekeningen en mutatieregel blijven intact). De test faalt op de kern van vóór deze wijziging.
+
+### 2. Een ontbrekende melding bij een onvolledig eindbuffer
+- **Status:** gesloten 06-10-2026, gebouwd en getest
+- **Eigenaar:** Sylvain
+- **Vindplaats:** vrijgave-xaf-xml-tekst-2026-09-08.md, verwijderd bij commit 20c05a0 (14-09-2026, "afgehandeld"); `index.html` (`afgekapt` in het done-bericht, rood waarschuwingsvak `afgekapt-warning`); `tests/header-en-eindbuffer.test.mjs`
+
+Besluit 06-10-2026, op advies van de sessie, mandaat van Sylvain van 05-10-2026: een zichtbare waarschuwing in de weergave, de uitvoer zelf blijft ongewijzigd. Afgewezen: de export blokkeren (de wel ingelezen dagboeken zijn bruikbaar) en stil blijven negeren (dat was het probleem). Reden: een fiscalist moet weten dat de mutaties mogelijk onvolledig zijn, maar mag met de rest verder werken.
+
+Blijft na afloop van de stream een `<journal>` zonder sluittag over, dan toont de tool een rode waarschuwing met het bestandsnummer bij meerdere bestanden. Bewijs: de tests "afgekapt bestand", "compleet bestand meldt niets" en "bij meerdere bestanden staat het nummer van het afgekapte bestand in de melding".
