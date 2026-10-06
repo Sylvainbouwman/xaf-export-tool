@@ -30,15 +30,6 @@ De subadministratie van XAF 3.2 (onder meer `invDueDt`, de enige echte vervaldat
 
 **Te sluiten wanneer:** een besluit is genomen om het blok alsnog te lezen, of vastgelegd is dat de beperking blijft staan.
 
-### 5. Geen testbestand met meervoudige btw uit de praktijk
-- **Status:** open, wacht op een echt testbestand van een pakket met meervoudige btw
-- **Eigenaar:** Sylvain
-- **Vindplaats:** `update-bram-xaf-export-tool.md`, r.301 (§6)
-
-De ondersteuning voor meer dan één btw-element per boekingsregel rust op de XSD en op verzonnen fragmenten. Een echt bestand van een pakket dat dit produceert zou het bewijs sluiten. In de terugkoppeling is Bram gevraagd of hij daar via het platform aan kan komen. Een echt bestand mag alleen lokaal staan en nooit in Git of in een test.
-
-**Te sluiten wanneer:** er een echt bestand met meervoudige btw lokaal is getoetst, of besloten is dat het bewijs op de XSD en de verzonnen fragmenten volstaat.
-
 ### 6. Excel-schrijver vervangen door een streaming-bibliotheek is niet gedaan
 - **Status:** open, bewuste beperking, als achtergrond gemarkeerd op 04-10-2026
 - **Eigenaar:** sessie
@@ -81,3 +72,14 @@ De splitsing tussen header en mutaties negeert nu letterlijke tekst (CDATA, comm
 Besluit 06-10-2026, op advies van de sessie, mandaat van Sylvain van 05-10-2026: een zichtbare waarschuwing in de weergave, de uitvoer zelf blijft ongewijzigd. Afgewezen: de export blokkeren (de wel ingelezen dagboeken zijn bruikbaar) en stil blijven negeren (dat was het probleem). Reden: een fiscalist moet weten dat de mutaties mogelijk onvolledig zijn, maar mag met de rest verder werken.
 
 Blijft na afloop van de stream een `<journal>` zonder sluittag over, dan toont de tool een rode waarschuwing met het bestandsnummer bij meerdere bestanden. Bewijs: de tests "afgekapt bestand", "compleet bestand meldt niets" en "bij meerdere bestanden staat het nummer van het afgekapte bestand in de melding".
+
+### 5. Geen testbestand met meervoudige btw uit de praktijk
+- **Status:** gesloten 06-10-2026, besluit van Sylvain: de XSD en de verzonnen fragmenten volstaan
+- **Eigenaar:** Sylvain
+- **Vindplaats:** `update-bram-xaf-export-tool.md`, r.301 (§6)
+
+De ondersteuning voor meer dan één btw-element per boekingsregel rust op de XSD en op verzonnen fragmenten. Een echt bestand van een pakket dat dit produceert zou het bewijs sluiten. In de terugkoppeling is Bram gevraagd of hij daar via het platform aan kan komen. Een echt bestand mag alleen lokaal staan en nooit in Git of in een test.
+
+**Te sluiten wanneer:** er een echt bestand met meervoudige btw lokaal is getoetst, of besloten is dat het bewijs op de XSD en de verzonnen fragmenten volstaat.
+
+Besluit 06-10-2026, Sylvain in de sessie, na uitleg met een synthetisch voorbeeld (een regel met een 9%- en een 21%-blok): het bewijs op de XSD en de verzonnen fragmenten volstaat. Afgewezen: open laten tot er een echt bestand is, en zelf lokaal toetsen. Reden: pakketten splitsen zo'n boeking meestal in twee regels, er is geen bestand bij de hand en de tool leest het geval volgens de standaard. Bewijs: `tests/btw-elementen.test.mjs` (17 gevallen).
